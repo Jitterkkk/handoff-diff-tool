@@ -4,6 +4,7 @@ import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
 import { saveToHistory, loadHistory, toMetaEntries } from './storage';
 import { exportDiffAsJSON, buildExportFileName } from './export';
+import { createHighlight, clearHighlights } from './highlight';
 import type { PluginToUIMessage, UIToPluginMessage } from '../shared/types';
 
 figma.showUI(__html__, {
@@ -96,8 +97,15 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
     case 'ZOOM_TO_NODE': {
       const node = figma.getNodeById(msg.nodeId);
       if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
-        figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
+        const sceneNode = node as SceneNode;
+        figma.viewport.scrollAndZoomIntoView([sceneNode]);
+        createHighlight(sceneNode);
       }
+      break;
+    }
+
+    case 'CLEAR_HIGHLIGHTS': {
+      clearHighlights();
       break;
     }
 

@@ -161,12 +161,16 @@ export function App() {
     post({ type: 'EXPORT_DIFF', diffs: state.diffs, frameName: state.frame.name });
   }, [state.diffs, state.frame]);
 
+  const handleClearHighlights = useCallback(() => {
+    post({ type: 'CLEAR_HIGHLIGHTS' });
+  }, []);
+
   const handleSelectVersion = useCallback((index: number) => {
     dispatch({ type: 'SELECT_VERSION', index });
   }, []);
 
   const hasSnapshot = state.historyEntries.length > 0;
-  const snapshotSavedAt = state.historyEntries.at(-1)?.savedAt ?? null;
+  const snapshotSavedAt = state.historyEntries[state.historyEntries.length - 1]?.savedAt ?? null;
   const showGuide = state.frame !== null && !hasSnapshot && state.diffs === null && !state.error;
 
   return (
@@ -197,6 +201,9 @@ export function App() {
         {state.diffs !== null && (
           <>
             <div style={styles.exportBar}>
+              <button style={styles.clearBtn} onClick={handleClearHighlights}>
+                ✕ Limpar highlights
+              </button>
               <button style={styles.exportBtn} onClick={handleExport}>
                 ↓ Exportar JSON
               </button>
@@ -255,6 +262,16 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
     marginBottom: 8,
+  },
+  clearBtn: {
+    background: 'none',
+    border: '1px solid #f5c2c0',
+    borderRadius: 5,
+    padding: '4px 10px',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#c0392b',
+    cursor: 'pointer',
   },
   exportBtn: {
     background: 'none',

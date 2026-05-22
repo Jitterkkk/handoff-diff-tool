@@ -19,7 +19,7 @@ function rgbaEqual(a: RGBA, b: RGBA): boolean {
 
 function paintsEqual(a: SerializablePaint, b: SerializablePaint): boolean {
   if (a.type !== b.type) return false;
-  if (a.type === 'SOLID' && b.type === 'SOLID') {
+  if (a.type === 'SOLID' && b.type === 'SOLID' && 'color' in a && 'color' in b) {
     return rgbaEqual(a.color, b.color) && Math.abs(a.opacity - b.opacity) <= 0.01;
   }
   return Math.abs(a.opacity - b.opacity) <= 0.01;

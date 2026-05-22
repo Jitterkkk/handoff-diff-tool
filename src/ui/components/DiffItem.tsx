@@ -13,6 +13,7 @@ const DIFF_LABELS: Record<DiffType, string> = {
   ADDED: 'Adicionado',
   REMOVED: 'Removido',
   COMPONENT: 'Componente',
+  LAYOUT: 'Layout',
 };
 
 const SEVERITY_COLORS: Record<Severity, { bg: string; text: string }> = {

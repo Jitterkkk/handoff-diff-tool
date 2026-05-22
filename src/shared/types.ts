@@ -102,6 +102,7 @@ export type UIToPluginMessage =
   | { type: 'SAVE_SNAPSHOT'; frameId: string; label?: string }
   | { type: 'GET_DIFF'; frameId: string; entryIndex: number }
   | { type: 'ZOOM_TO_NODE'; nodeId: string }
+  | { type: 'CLEAR_HIGHLIGHTS' }
   | { type: 'EXPORT_DIFF'; diffs: DiffResult[]; frameName: string };
 
 // Plugin → UI
