@@ -1,6 +1,12 @@
 import { useEffect, useReducer, useCallback } from 'react';
-import type { DiffResult, PluginToUIMessage, UIToPluginMessage } from '../shared/types';
+import type {
+  DiffResult,
+  PluginToUIMessage,
+  SnapshotEntryMeta,
+  UIToPluginMessage,
+} from '../shared/types';
 import { FrameSelector } from './components/FrameSelector';
+import { VersionSelector } from './components/VersionSelector';
 import { DiffList } from './components/DiffList';
 
 interface FrameInfo {
@@ -10,8 +16,8 @@ interface FrameInfo {
 
 interface AppState {
   frame: FrameInfo | null;
-  hasSnapshot: boolean;
-  snapshotSavedAt: number | null;
+  historyEntries: SnapshotEntryMeta[];
+  selectedEntryIndex: number;
   diffs: DiffResult[] | null;
   diffSavedAt: number | null;
   isLoading: 'save' | 'diff' | null;
@@ -19,23 +25,28 @@ interface AppState {
 }
 
 type Action =
-  | { type: 'FRAME_SELECTED'; frame: FrameInfo; hasSnapshot: boolean; snapshotSavedAt: number | null }
+  | { type: 'FRAME_SELECTED'; frame: FrameInfo; historyEntries: SnapshotEntryMeta[] }
   | { type: 'NO_FRAME' }
   | { type: 'START_SAVE' }
   | { type: 'START_DIFF' }
-  | { type: 'SNAPSHOT_SAVED'; savedAt: number }
+  | { type: 'SNAPSHOT_SAVED'; historyEntries: SnapshotEntryMeta[] }
   | { type: 'DIFF_RESULT'; diffs: DiffResult[]; savedAt: number }
+  | { type: 'SELECT_VERSION'; index: number }
   | { type: 'ERROR'; message: string };
 
 const initial: AppState = {
   frame: null,
-  hasSnapshot: false,
-  snapshotSavedAt: null,
+  historyEntries: [],
+  selectedEntryIndex: 0,
   diffs: null,
   diffSavedAt: null,
   isLoading: null,
   error: null,
 };
+
+function mostRecentIndex(entries: SnapshotEntryMeta[]): number {
+  return Math.max(0, entries.length - 1);
+}
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -44,8 +55,8 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         frame: action.frame,
-        hasSnapshot: action.hasSnapshot,
-        snapshotSavedAt: action.snapshotSavedAt,
+        historyEntries: action.historyEntries,
+        selectedEntryIndex: mostRecentIndex(action.historyEntries),
         error: null,
         diffs: sameFrame ? state.diffs : null,
         diffSavedAt: sameFrame ? state.diffSavedAt : null,
@@ -58,9 +69,18 @@ function reducer(state: AppState, action: Action): AppState {
     case 'START_DIFF':
       return { ...state, isLoading: 'diff', error: null };
     case 'SNAPSHOT_SAVED':
-      return { ...state, isLoading: null, hasSnapshot: true, snapshotSavedAt: action.savedAt, diffs: null };
+      return {
+        ...state,
+        isLoading: null,
+        historyEntries: action.historyEntries,
+        selectedEntryIndex: mostRecentIndex(action.historyEntries),
+        diffs: null,
+        diffSavedAt: null,
+      };
     case 'DIFF_RESULT':
       return { ...state, isLoading: null, diffs: action.diffs, diffSavedAt: action.savedAt };
+    case 'SELECT_VERSION':
+      return { ...state, selectedEntryIndex: action.index, diffs: null, diffSavedAt: null };
     case 'ERROR':
       return { ...state, isLoading: null, error: action.message };
   }
@@ -85,21 +105,19 @@ export function App() {
           dispatch({
             type: 'FRAME_SELECTED',
             frame: { id: msg.frameId, name: msg.frameName },
-            hasSnapshot: msg.hasSnapshot,
-            snapshotSavedAt: msg.snapshotSavedAt,
+            historyEntries: msg.historyEntries,
           });
           break;
         case 'NO_FRAME_SELECTED':
           dispatch({ type: 'NO_FRAME' });
           break;
         case 'SNAPSHOT_SAVED':
-          dispatch({ type: 'SNAPSHOT_SAVED', savedAt: msg.savedAt });
+          dispatch({ type: 'SNAPSHOT_SAVED', historyEntries: msg.historyEntries });
           break;
         case 'DIFF_RESULT':
           dispatch({ type: 'DIFF_RESULT', diffs: msg.diffs, savedAt: msg.savedAt });
           break;
         case 'NO_PREVIOUS_SNAPSHOT':
-          // Não deve acontecer (UI agora sabe antes de pedir), mas protege
           dispatch({ type: 'ERROR', message: 'Nenhuma versão salva para este frame.' });
           break;
         case 'DIFF_EXPORT': {
@@ -131,8 +149,8 @@ export function App() {
   const handleDiff = useCallback(() => {
     if (!state.frame) return;
     dispatch({ type: 'START_DIFF' });
-    post({ type: 'GET_DIFF', frameId: state.frame.id });
-  }, [state.frame]);
+    post({ type: 'GET_DIFF', frameId: state.frame.id, entryIndex: state.selectedEntryIndex });
+  }, [state.frame, state.selectedEntryIndex]);
 
   const handleZoom = useCallback((nodeId: string) => {
     post({ type: 'ZOOM_TO_NODE', nodeId });
@@ -143,14 +161,20 @@ export function App() {
     post({ type: 'EXPORT_DIFF', diffs: state.diffs, frameName: state.frame.name });
   }, [state.diffs, state.frame]);
 
-  const showGuide = state.frame !== null && !state.hasSnapshot && state.diffs === null && !state.error;
+  const handleSelectVersion = useCallback((index: number) => {
+    dispatch({ type: 'SELECT_VERSION', index });
+  }, []);
+
+  const hasSnapshot = state.historyEntries.length > 0;
+  const snapshotSavedAt = state.historyEntries.at(-1)?.savedAt ?? null;
+  const showGuide = state.frame !== null && !hasSnapshot && state.diffs === null && !state.error;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <FrameSelector
         frameName={state.frame?.name ?? null}
-        hasSnapshot={state.hasSnapshot}
-        snapshotSavedAt={state.snapshotSavedAt}
+        hasSnapshot={hasSnapshot}
+        snapshotSavedAt={snapshotSavedAt}
         isLoading={state.isLoading}
         onSave={handleSave}
         onDiff={handleDiff}
@@ -161,6 +185,14 @@ export function App() {
 
         {state.frame === null && <EmptyNoFrame />}
         {showGuide && <EmptyNoSnapshot />}
+
+        {hasSnapshot && (
+          <VersionSelector
+            entries={state.historyEntries}
+            selectedIndex={state.selectedEntryIndex}
+            onChange={handleSelectVersion}
+          />
+        )}
 
         {state.diffs !== null && (
           <>

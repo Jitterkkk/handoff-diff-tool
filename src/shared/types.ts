@@ -77,26 +77,38 @@ export interface DiffResult {
   severity: Severity;
 }
 
-export interface SnapshotRecord {
+export interface SnapshotEntry {
+  savedAt: number;
+  label?: string;
+  snapshot: NodeSnapshot;
+}
+
+export interface SnapshotHistory {
   frameId: string;
   frameName: string;
-  snapshot: NodeSnapshot;
+  entries: SnapshotEntry[]; // máx 5, índice 0 = mais antigo
+}
+
+// Metadados para a UI — sem o snapshot completo
+export interface SnapshotEntryMeta {
+  index: number;
   savedAt: number;
+  label?: string;
 }
 
 // UI → Plugin
 export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
-  | { type: 'SAVE_SNAPSHOT'; frameId: string }
-  | { type: 'GET_DIFF'; frameId: string }
+  | { type: 'SAVE_SNAPSHOT'; frameId: string; label?: string }
+  | { type: 'GET_DIFF'; frameId: string; entryIndex: number }
   | { type: 'ZOOM_TO_NODE'; nodeId: string }
   | { type: 'EXPORT_DIFF'; diffs: DiffResult[]; frameName: string };
 
 // Plugin → UI
 export type PluginToUIMessage =
-  | { type: 'CURRENT_FRAME'; frameId: string; frameName: string; hasSnapshot: boolean; snapshotSavedAt: number | null }
+  | { type: 'CURRENT_FRAME'; frameId: string; frameName: string; hasSnapshot: boolean; historyEntries: SnapshotEntryMeta[] }
   | { type: 'NO_FRAME_SELECTED' }
-  | { type: 'SNAPSHOT_SAVED'; frameId: string; frameName: string; savedAt: number }
+  | { type: 'SNAPSHOT_SAVED'; frameId: string; frameName: string; savedAt: number; historyEntries: SnapshotEntryMeta[] }
   | { type: 'DIFF_RESULT'; diffs: DiffResult[]; frameId: string; savedAt: number }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
   | { type: 'DIFF_EXPORT'; json: string; fileName: string }

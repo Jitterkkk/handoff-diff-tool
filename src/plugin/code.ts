@@ -2,7 +2,7 @@
 
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
-import { saveSnapshot, loadSnapshot } from './storage';
+import { saveToHistory, loadHistory, toMetaEntries } from './storage';
 import { exportDiffAsJSON, buildExportFileName } from './export';
 import type { PluginToUIMessage, UIToPluginMessage } from '../shared/types';
 
@@ -26,13 +26,14 @@ function getSelectedFrame(): FrameNode | null {
 async function notifyCurrentFrame(): Promise<void> {
   const frame = getSelectedFrame();
   if (frame) {
-    const record = await loadSnapshot(frame.id);
+    const history = await loadHistory(frame.id);
+    const historyEntries = toMetaEntries(history);
     send({
       type: 'CURRENT_FRAME',
       frameId: frame.id,
       frameName: frame.name,
-      hasSnapshot: record !== null,
-      snapshotSavedAt: record?.savedAt ?? null,
+      hasSnapshot: historyEntries.length > 0,
+      historyEntries,
     });
   } else {
     send({ type: 'NO_FRAME_SELECTED' });
@@ -56,18 +57,14 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
       }
       try {
         const snapshot = takeSnapshot(frame);
-        const record = {
-          frameId: frame.id,
-          frameName: frame.name,
-          snapshot,
-          savedAt: Date.now(),
-        };
-        await saveSnapshot(record);
+        const history = await saveToHistory(frame.id, frame.name, snapshot, msg.label);
+        const historyEntries = toMetaEntries(history);
         send({
           type: 'SNAPSHOT_SAVED',
           frameId: frame.id,
           frameName: frame.name,
-          savedAt: record.savedAt,
+          savedAt: historyEntries[historyEntries.length - 1].savedAt,
+          historyEntries,
         });
       } catch (err) {
         const message =
@@ -83,14 +80,16 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         send({ type: 'ERROR', message: 'Selecione um frame para comparar.' });
         break;
       }
-      const record = await loadSnapshot(frame.id);
-      if (!record) {
+      const history = await loadHistory(frame.id);
+      if (!history || history.entries.length === 0) {
         send({ type: 'NO_PREVIOUS_SNAPSHOT' });
         break;
       }
+      const safeIndex = Math.min(msg.entryIndex, history.entries.length - 1);
+      const entry = history.entries[safeIndex];
       const current = takeSnapshot(frame);
-      const diffs = diffSnapshots(record.snapshot, current);
-      send({ type: 'DIFF_RESULT', diffs, frameId: frame.id, savedAt: record.savedAt });
+      const diffs = diffSnapshots(entry.snapshot, current);
+      send({ type: 'DIFF_RESULT', diffs, frameId: frame.id, savedAt: entry.savedAt });
       break;
     }
 
