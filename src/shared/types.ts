@@ -97,23 +97,38 @@ export interface SnapshotEntryMeta {
   label?: string;
 }
 
+// Frame com histórico — usado em mensagens plugin → UI
+export interface FrameMeta {
+  id: string;
+  name: string;
+  historyEntries: SnapshotEntryMeta[];
+}
+
+// Diffs de um frame específico
+export interface FrameDiffGroup {
+  frameId: string;
+  frameName: string;
+  diffs: DiffResult[];
+  savedAt: number;
+}
+
 // UI → Plugin
 export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
-  | { type: 'SAVE_SNAPSHOT'; frameId: string; label?: string }
-  | { type: 'GET_DIFF'; frameId: string; entryIndex: number; includePosition: boolean }
+  | { type: 'SAVE_SNAPSHOT'; label?: string }
+  | { type: 'GET_DIFF'; entryIndex: number; includePosition: boolean }
   | { type: 'ZOOM_TO_NODE'; nodeId: string }
   | { type: 'CLEAR_HIGHLIGHTS' }
-  | { type: 'EXPORT_DIFF'; diffs: DiffResult[]; frameName: string }
+  | { type: 'EXPORT_DIFF'; frameDiffs: FrameDiffGroup[] }
   | { type: 'GET_SETTINGS' }
   | { type: 'SAVE_SETTINGS'; includePosition: boolean };
 
 // Plugin → UI
 export type PluginToUIMessage =
-  | { type: 'CURRENT_FRAME'; frameId: string; frameName: string; hasSnapshot: boolean; historyEntries: SnapshotEntryMeta[] }
+  | { type: 'CURRENT_FRAMES'; frames: FrameMeta[] }
   | { type: 'NO_FRAME_SELECTED' }
-  | { type: 'SNAPSHOT_SAVED'; frameId: string; frameName: string; savedAt: number; historyEntries: SnapshotEntryMeta[] }
-  | { type: 'DIFF_RESULT'; diffs: DiffResult[]; frameId: string; savedAt: number }
+  | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
+  | { type: 'DIFF_RESULT'; frameDiffs: FrameDiffGroup[] }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
   | { type: 'DIFF_EXPORT'; json: string; fileName: string }
   | { type: 'SETTINGS'; includePosition: boolean }

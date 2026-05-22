@@ -1,6 +1,11 @@
+interface FrameInfo {
+  id: string;
+  name: string;
+}
+
 interface Props {
-  frameName: string | null;
-  hasSnapshot: boolean;
+  frames: FrameInfo[];
+  hasAnySnapshot: boolean;
   snapshotSavedAt: number | null;
   isLoading: 'save' | 'diff' | null;
   onSave: () => void;
@@ -8,29 +13,46 @@ interface Props {
 }
 
 export function FrameSelector({
-  frameName,
-  hasSnapshot,
+  frames,
+  hasAnySnapshot,
   snapshotSavedAt,
   isLoading,
   onSave,
   onDiff,
 }: Props) {
-  const hasFrame = frameName !== null;
-  const canSave = hasFrame && isLoading === null;
-  const canDiff = hasFrame && hasSnapshot && isLoading === null;
+  const hasFrames = frames.length > 0;
+  const isMulti = frames.length > 1;
+  const canSave = hasFrames && isLoading === null;
+  const canDiff = hasFrames && hasAnySnapshot && isLoading === null;
+
+  function renderFrameLabel() {
+    if (!hasFrames) return <span style={styles.noFrame}>Nenhum frame selecionado</span>;
+    if (isMulti) {
+      return <span style={styles.frameName}>{frames.length} frames selecionados</span>;
+    }
+    return <span style={styles.frameName}>{frames[0].name}</span>;
+  }
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <span style={styles.label}>Frame selecionado</span>
-        {hasFrame ? (
-          <span style={styles.frameName}>{frameName}</span>
-        ) : (
-          <span style={styles.noFrame}>Nenhum frame selecionado</span>
-        )}
+        <span style={styles.label}>
+          {isMulti ? 'Frames selecionados' : 'Frame selecionado'}
+        </span>
+        {renderFrameLabel()}
       </div>
 
-      {snapshotSavedAt !== null && (
+      {isMulti && (
+        <div style={styles.frameList}>
+          {frames.map((f) => (
+            <span key={f.id} style={styles.frameChip}>
+              {f.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {!isMulti && snapshotSavedAt !== null && (
         <div style={styles.savedBadge}>
           Versão salva em {new Date(snapshotSavedAt).toLocaleTimeString('pt-BR')}
         </div>
@@ -42,18 +64,20 @@ export function FrameSelector({
           disabled={!canSave}
           onClick={onSave}
         >
-          {isLoading === 'save' ? 'Salvando…' : 'Salvar versão atual'}
+          {isLoading === 'save'
+            ? 'Salvando…'
+            : isMulti
+              ? `Salvar ${frames.length} frames`
+              : 'Salvar versão atual'}
         </button>
 
-        {/* Wrapper necessário: botões disabled não disparam eventos de mouse,
-            então o title (tooltip) precisa ficar no span pai. */}
         <span
           style={{ flex: 1, cursor: canDiff ? 'default' : 'not-allowed' }}
           title={
-            !hasFrame
+            !hasFrames
               ? 'Selecione um frame para comparar'
-              : !hasSnapshot
-                ? 'Salve uma versão do frame antes de comparar'
+              : !hasAnySnapshot
+                ? 'Salve uma versão antes de comparar'
                 : undefined
           }
         >
@@ -108,6 +132,22 @@ const styles = {
     fontSize: 12,
     color: '#aaa',
     fontStyle: 'italic',
+  },
+  frameList: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 4,
+  },
+  frameChip: {
+    fontSize: 10,
+    color: '#555',
+    background: '#f0f0f0',
+    borderRadius: 4,
+    padding: '2px 6px',
+    maxWidth: 120,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
   },
   savedBadge: {
     fontSize: 10,

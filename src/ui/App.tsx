@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useCallback } from 'react';
 import type {
-  DiffResult,
+  FrameDiffGroup,
+  FrameMeta,
   PluginToUIMessage,
   SnapshotEntryMeta,
   UIToPluginMessage,
@@ -9,40 +10,31 @@ import { FrameSelector } from './components/FrameSelector';
 import { VersionSelector } from './components/VersionSelector';
 import { DiffList } from './components/DiffList';
 
-interface FrameInfo {
-  id: string;
-  name: string;
-}
-
 interface AppState {
-  frame: FrameInfo | null;
-  historyEntries: SnapshotEntryMeta[];
+  frames: FrameMeta[];
   selectedEntryIndex: number;
-  diffs: DiffResult[] | null;
-  diffSavedAt: number | null;
+  frameDiffs: FrameDiffGroup[] | null;
   isLoading: 'save' | 'diff' | null;
   error: string | null;
   includePosition: boolean;
 }
 
 type Action =
-  | { type: 'FRAME_SELECTED'; frame: FrameInfo; historyEntries: SnapshotEntryMeta[] }
+  | { type: 'FRAMES_UPDATED'; frames: FrameMeta[] }
   | { type: 'NO_FRAME' }
   | { type: 'START_SAVE' }
   | { type: 'START_DIFF' }
-  | { type: 'SNAPSHOT_SAVED'; historyEntries: SnapshotEntryMeta[] }
-  | { type: 'DIFF_RESULT'; diffs: DiffResult[]; savedAt: number }
+  | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
+  | { type: 'DIFF_RESULT'; frameDiffs: FrameDiffGroup[] }
   | { type: 'SELECT_VERSION'; index: number }
   | { type: 'SET_INCLUDE_POSITION'; value: boolean }
   | { type: 'SETTINGS_LOADED'; includePosition: boolean }
   | { type: 'ERROR'; message: string };
 
 const initial: AppState = {
-  frame: null,
-  historyEntries: [],
+  frames: [],
   selectedEntryIndex: 0,
-  diffs: null,
-  diffSavedAt: null,
+  frameDiffs: null,
   isLoading: null,
   error: null,
   includePosition: false,
@@ -54,39 +46,43 @@ function mostRecentIndex(entries: SnapshotEntryMeta[]): number {
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'FRAME_SELECTED': {
-      const sameFrame = state.frame?.id === action.frame.id;
+    case 'FRAMES_UPDATED': {
+      const prevIds = state.frames.map((f) => f.id).join(',');
+      const nextIds = action.frames.map((f) => f.id).join(',');
+      const sameFrames = prevIds === nextIds;
+      const singleHistory = action.frames[0]?.historyEntries ?? [];
       return {
         ...state,
-        frame: action.frame,
-        historyEntries: action.historyEntries,
-        selectedEntryIndex: mostRecentIndex(action.historyEntries),
+        frames: action.frames,
+        selectedEntryIndex: sameFrames
+          ? state.selectedEntryIndex
+          : mostRecentIndex(singleHistory),
+        frameDiffs: sameFrames ? state.frameDiffs : null,
         error: null,
-        diffs: sameFrame ? state.diffs : null,
-        diffSavedAt: sameFrame ? state.diffSavedAt : null,
       };
     }
     case 'NO_FRAME':
-      return { ...initial };
+      return { ...initial, includePosition: state.includePosition };
     case 'START_SAVE':
       return { ...state, isLoading: 'save', error: null };
     case 'START_DIFF':
       return { ...state, isLoading: 'diff', error: null };
-    case 'SNAPSHOT_SAVED':
+    case 'SNAPSHOT_SAVED': {
+      const singleHistory = action.frames[0]?.historyEntries ?? [];
       return {
         ...state,
         isLoading: null,
-        historyEntries: action.historyEntries,
-        selectedEntryIndex: mostRecentIndex(action.historyEntries),
-        diffs: null,
-        diffSavedAt: null,
+        frames: action.frames,
+        selectedEntryIndex: mostRecentIndex(singleHistory),
+        frameDiffs: null,
       };
+    }
     case 'DIFF_RESULT':
-      return { ...state, isLoading: null, diffs: action.diffs, diffSavedAt: action.savedAt };
+      return { ...state, isLoading: null, frameDiffs: action.frameDiffs };
     case 'SELECT_VERSION':
-      return { ...state, selectedEntryIndex: action.index, diffs: null, diffSavedAt: null };
+      return { ...state, selectedEntryIndex: action.index, frameDiffs: null };
     case 'SET_INCLUDE_POSITION':
-      return { ...state, includePosition: action.value, diffs: null, diffSavedAt: null };
+      return { ...state, includePosition: action.value, frameDiffs: null };
     case 'SETTINGS_LOADED':
       return { ...state, includePosition: action.includePosition };
     case 'ERROR':
@@ -110,24 +106,20 @@ export function App() {
       if (!msg) return;
 
       switch (msg.type) {
-        case 'CURRENT_FRAME':
-          dispatch({
-            type: 'FRAME_SELECTED',
-            frame: { id: msg.frameId, name: msg.frameName },
-            historyEntries: msg.historyEntries,
-          });
+        case 'CURRENT_FRAMES':
+          dispatch({ type: 'FRAMES_UPDATED', frames: msg.frames });
           break;
         case 'NO_FRAME_SELECTED':
           dispatch({ type: 'NO_FRAME' });
           break;
         case 'SNAPSHOT_SAVED':
-          dispatch({ type: 'SNAPSHOT_SAVED', historyEntries: msg.historyEntries });
+          dispatch({ type: 'SNAPSHOT_SAVED', frames: msg.frames });
           break;
         case 'DIFF_RESULT':
-          dispatch({ type: 'DIFF_RESULT', diffs: msg.diffs, savedAt: msg.savedAt });
+          dispatch({ type: 'DIFF_RESULT', frameDiffs: msg.frameDiffs });
           break;
         case 'NO_PREVIOUS_SNAPSHOT':
-          dispatch({ type: 'ERROR', message: 'Nenhuma versão salva para este frame.' });
+          dispatch({ type: 'ERROR', message: 'Nenhuma versão salva para comparar.' });
           break;
         case 'DIFF_EXPORT': {
           const blob = new Blob([msg.json], { type: 'application/json' });
@@ -152,36 +144,40 @@ export function App() {
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
+  const isSingleFrame = state.frames.length === 1;
+  const hasAnySnapshot = state.frames.some((f) => f.historyEntries.length > 0);
+  const singleHistory: SnapshotEntryMeta[] = isSingleFrame
+    ? state.frames[0].historyEntries
+    : [];
+  const snapshotSavedAt =
+    isSingleFrame
+      ? (singleHistory[singleHistory.length - 1]?.savedAt ?? null)
+      : null;
+
   const handleSave = useCallback(() => {
-    if (!state.frame) return;
+    if (state.frames.length === 0) return;
     dispatch({ type: 'START_SAVE' });
-    post({ type: 'SAVE_SNAPSHOT', frameId: state.frame.id });
-  }, [state.frame]);
+    post({ type: 'SAVE_SNAPSHOT' });
+  }, [state.frames.length]);
 
   const handleDiff = useCallback(() => {
-    if (!state.frame) return;
+    if (state.frames.length === 0) return;
     dispatch({ type: 'START_DIFF' });
     post({
       type: 'GET_DIFF',
-      frameId: state.frame.id,
       entryIndex: state.selectedEntryIndex,
       includePosition: state.includePosition,
     });
-  }, [state.frame, state.selectedEntryIndex, state.includePosition]);
-
-  const handleTogglePosition = useCallback((value: boolean) => {
-    dispatch({ type: 'SET_INCLUDE_POSITION', value });
-    post({ type: 'SAVE_SETTINGS', includePosition: value });
-  }, []);
+  }, [state.frames.length, state.selectedEntryIndex, state.includePosition]);
 
   const handleZoom = useCallback((nodeId: string) => {
     post({ type: 'ZOOM_TO_NODE', nodeId });
   }, []);
 
   const handleExport = useCallback(() => {
-    if (!state.diffs || !state.frame) return;
-    post({ type: 'EXPORT_DIFF', diffs: state.diffs, frameName: state.frame.name });
-  }, [state.diffs, state.frame]);
+    if (!state.frameDiffs) return;
+    post({ type: 'EXPORT_DIFF', frameDiffs: state.frameDiffs });
+  }, [state.frameDiffs]);
 
   const handleClearHighlights = useCallback(() => {
     post({ type: 'CLEAR_HIGHLIGHTS' });
@@ -191,15 +187,19 @@ export function App() {
     dispatch({ type: 'SELECT_VERSION', index });
   }, []);
 
-  const hasSnapshot = state.historyEntries.length > 0;
-  const snapshotSavedAt = state.historyEntries[state.historyEntries.length - 1]?.savedAt ?? null;
-  const showGuide = state.frame !== null && !hasSnapshot && state.diffs === null && !state.error;
+  const handleTogglePosition = useCallback((value: boolean) => {
+    dispatch({ type: 'SET_INCLUDE_POSITION', value });
+    post({ type: 'SAVE_SETTINGS', includePosition: value });
+  }, []);
+
+  const noFrames = state.frames.length === 0;
+  const showGuide = !noFrames && !hasAnySnapshot && state.frameDiffs === null && !state.error;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <FrameSelector
-        frameName={state.frame?.name ?? null}
-        hasSnapshot={hasSnapshot}
+        frames={state.frames}
+        hasAnySnapshot={hasAnySnapshot}
         snapshotSavedAt={snapshotSavedAt}
         isLoading={state.isLoading}
         onSave={handleSave}
@@ -209,18 +209,18 @@ export function App() {
       <div style={styles.content}>
         {state.error && <p style={styles.error}>{state.error}</p>}
 
-        {state.frame === null && <EmptyNoFrame />}
+        {noFrames && <EmptyNoFrame />}
         {showGuide && <EmptyNoSnapshot />}
 
-        {hasSnapshot && (
+        {isSingleFrame && singleHistory.length > 0 && (
           <VersionSelector
-            entries={state.historyEntries}
+            entries={singleHistory}
             selectedIndex={state.selectedEntryIndex}
             onChange={handleSelectVersion}
           />
         )}
 
-        {hasSnapshot && (
+        {isSingleFrame && singleHistory.length > 0 && (
           <label style={styles.toggleRow}>
             <div
               style={{
@@ -242,7 +242,7 @@ export function App() {
           </label>
         )}
 
-        {state.diffs !== null && (
+        {state.frameDiffs !== null && (
           <>
             <div style={styles.exportBar}>
               <button style={styles.clearBtn} onClick={handleClearHighlights}>
@@ -252,7 +252,22 @@ export function App() {
                 ↓ Exportar JSON
               </button>
             </div>
-            <DiffList diffs={state.diffs} savedAt={state.diffSavedAt} onZoom={handleZoom} />
+
+            {state.frameDiffs.map((group) => (
+              <div key={group.frameId}>
+                {state.frameDiffs!.length > 1 && (
+                  <div style={styles.frameHeader}>
+                    <span style={styles.frameHeaderName}>{group.frameName}</span>
+                    <span style={styles.frameHeaderCount}>
+                      {group.diffs.length === 0
+                        ? 'sem mudanças'
+                        : `${group.diffs.length} ${group.diffs.length === 1 ? 'mudança' : 'mudanças'}`}
+                    </span>
+                  </div>
+                )}
+                <DiffList diffs={group.diffs} savedAt={group.savedAt} onZoom={handleZoom} />
+              </div>
+            ))}
           </>
         )}
       </div>
@@ -302,11 +317,6 @@ const styles = {
     fontSize: '11px',
     marginTop: 8,
   },
-  exportBar: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    marginBottom: 8,
-  },
   toggleRow: {
     display: 'flex',
     alignItems: 'center',
@@ -338,6 +348,12 @@ const styles = {
     color: '#555',
     userSelect: 'none',
   },
+  exportBar: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginBottom: 8,
+  },
   clearBtn: {
     background: 'none',
     border: '1px solid #f5c2c0',
@@ -357,6 +373,29 @@ const styles = {
     fontWeight: 600,
     color: '#555',
     cursor: 'pointer',
+  },
+  frameHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 0 4px',
+    borderTop: '1px solid #f0f0f0',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  frameHeaderName: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#1e1e1e',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+    maxWidth: '70%',
+  },
+  frameHeaderCount: {
+    fontSize: 10,
+    color: '#aaa',
+    flexShrink: 0,
   },
 } satisfies Record<string, React.CSSProperties>;
 
