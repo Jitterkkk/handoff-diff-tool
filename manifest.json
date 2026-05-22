@@ -5,7 +5,7 @@
   "main": "dist/code.js",
   "ui": "dist/index.html",
   "editorType": ["figma"],
-  "permissions": ["currentUser", "activeUsers", "fileUsers", "payments"],
+  "permissions": ["currentUser", "activeUsers", "fileUsers"],
   "networkAccess": {
     "allowedDomains": []
   }
