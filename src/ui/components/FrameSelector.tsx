@@ -1,13 +1,23 @@
 interface Props {
   frameName: string | null;
+  hasSnapshot: boolean;
   snapshotSavedAt: number | null;
   isLoading: 'save' | 'diff' | null;
   onSave: () => void;
   onDiff: () => void;
 }
 
-export function FrameSelector({ frameName, snapshotSavedAt, isLoading, onSave, onDiff }: Props) {
+export function FrameSelector({
+  frameName,
+  hasSnapshot,
+  snapshotSavedAt,
+  isLoading,
+  onSave,
+  onDiff,
+}: Props) {
   const hasFrame = frameName !== null;
+  const canSave = hasFrame && isLoading === null;
+  const canDiff = hasFrame && hasSnapshot && isLoading === null;
 
   return (
     <div style={styles.container}>
@@ -28,19 +38,39 @@ export function FrameSelector({ frameName, snapshotSavedAt, isLoading, onSave, o
 
       <div style={styles.actions}>
         <button
-          style={{ ...styles.btn, ...styles.btnSecondary }}
-          disabled={!hasFrame || isLoading !== null}
+          style={{ ...styles.btn, ...styles.btnSecondary, opacity: canSave ? 1 : 0.45 }}
+          disabled={!canSave}
           onClick={onSave}
         >
           {isLoading === 'save' ? 'Salvando…' : 'Salvar versão atual'}
         </button>
-        <button
-          style={{ ...styles.btn, ...styles.btnPrimary }}
-          disabled={!hasFrame || isLoading !== null}
-          onClick={onDiff}
+
+        {/* Wrapper necessário: botões disabled não disparam eventos de mouse,
+            então o title (tooltip) precisa ficar no span pai. */}
+        <span
+          style={{ flex: 1, cursor: canDiff ? 'default' : 'not-allowed' }}
+          title={
+            !hasFrame
+              ? 'Selecione um frame para comparar'
+              : !hasSnapshot
+                ? 'Salve uma versão do frame antes de comparar'
+                : undefined
+          }
         >
-          {isLoading === 'diff' ? 'Comparando…' : 'Ver o que mudou'}
-        </button>
+          <button
+            style={{
+              ...styles.btn,
+              ...styles.btnPrimary,
+              opacity: canDiff ? 1 : 0.45,
+              pointerEvents: canDiff ? 'auto' : 'none',
+              width: '100%',
+            }}
+            disabled={!canDiff}
+            onClick={onDiff}
+          >
+            {isLoading === 'diff' ? 'Comparando…' : 'Ver o que mudou'}
+          </button>
+        </span>
       </div>
     </div>
   );

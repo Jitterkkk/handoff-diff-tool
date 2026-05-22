@@ -22,10 +22,17 @@ function getSelectedFrame(): FrameNode | null {
   return node.type === 'FRAME' ? node : null;
 }
 
-function notifyCurrentFrame(): void {
+async function notifyCurrentFrame(): Promise<void> {
   const frame = getSelectedFrame();
   if (frame) {
-    send({ type: 'CURRENT_FRAME', frameId: frame.id, frameName: frame.name });
+    const record = await loadSnapshot(frame.id);
+    send({
+      type: 'CURRENT_FRAME',
+      frameId: frame.id,
+      frameName: frame.name,
+      hasSnapshot: record !== null,
+      snapshotSavedAt: record?.savedAt ?? null,
+    });
   } else {
     send({ type: 'NO_FRAME_SELECTED' });
   }
@@ -36,7 +43,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
   switch (msg.type) {
     case 'GET_CURRENT_FRAME': {
-      notifyCurrentFrame();
+      await notifyCurrentFrame();
       break;
     }
 
@@ -96,4 +103,4 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
   }
 };
 
-figma.on('selectionchange', notifyCurrentFrame);
+figma.on('selectionchange', () => { void notifyCurrentFrame(); });

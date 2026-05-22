@@ -93,7 +93,7 @@ export type UIToPluginMessage =
 
 // Plugin → UI
 export type PluginToUIMessage =
-  | { type: 'CURRENT_FRAME'; frameId: string; frameName: string }
+  | { type: 'CURRENT_FRAME'; frameId: string; frameName: string; hasSnapshot: boolean; snapshotSavedAt: number | null }
   | { type: 'NO_FRAME_SELECTED' }
   | { type: 'SNAPSHOT_SAVED'; frameId: string; frameName: string; savedAt: number }
   | { type: 'DIFF_RESULT'; diffs: DiffResult[]; frameId: string; savedAt: number }
