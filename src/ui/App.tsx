@@ -102,6 +102,16 @@ export function App() {
           // Não deve acontecer (UI agora sabe antes de pedir), mas protege
           dispatch({ type: 'ERROR', message: 'Nenhuma versão salva para este frame.' });
           break;
+        case 'DIFF_EXPORT': {
+          const blob = new Blob([msg.json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = msg.fileName;
+          a.click();
+          URL.revokeObjectURL(url);
+          break;
+        }
         case 'ERROR':
           dispatch({ type: 'ERROR', message: msg.message });
           break;
@@ -128,6 +138,11 @@ export function App() {
     post({ type: 'ZOOM_TO_NODE', nodeId });
   }, []);
 
+  const handleExport = useCallback(() => {
+    if (!state.diffs || !state.frame) return;
+    post({ type: 'EXPORT_DIFF', diffs: state.diffs, frameName: state.frame.name });
+  }, [state.diffs, state.frame]);
+
   const showGuide = state.frame !== null && !state.hasSnapshot && state.diffs === null && !state.error;
 
   return (
@@ -148,7 +163,14 @@ export function App() {
         {showGuide && <EmptyNoSnapshot />}
 
         {state.diffs !== null && (
-          <DiffList diffs={state.diffs} savedAt={state.diffSavedAt} onZoom={handleZoom} />
+          <>
+            <div style={styles.exportBar}>
+              <button style={styles.exportBtn} onClick={handleExport}>
+                ↓ Exportar JSON
+              </button>
+            </div>
+            <DiffList diffs={state.diffs} savedAt={state.diffSavedAt} onZoom={handleZoom} />
+          </>
         )}
       </div>
     </div>
@@ -196,6 +218,21 @@ const styles = {
     color: '#c0392b',
     fontSize: '11px',
     marginTop: 8,
+  },
+  exportBar: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
+  },
+  exportBtn: {
+    background: 'none',
+    border: '1px solid #ddd',
+    borderRadius: 5,
+    padding: '4px 10px',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#555',
+    cursor: 'pointer',
   },
 } satisfies Record<string, React.CSSProperties>;
 

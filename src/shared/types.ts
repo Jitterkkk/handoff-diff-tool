@@ -89,7 +89,8 @@ export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
   | { type: 'SAVE_SNAPSHOT'; frameId: string }
   | { type: 'GET_DIFF'; frameId: string }
-  | { type: 'ZOOM_TO_NODE'; nodeId: string };
+  | { type: 'ZOOM_TO_NODE'; nodeId: string }
+  | { type: 'EXPORT_DIFF'; diffs: DiffResult[]; frameName: string };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -98,4 +99,5 @@ export type PluginToUIMessage =
   | { type: 'SNAPSHOT_SAVED'; frameId: string; frameName: string; savedAt: number }
   | { type: 'DIFF_RESULT'; diffs: DiffResult[]; frameId: string; savedAt: number }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
+  | { type: 'DIFF_EXPORT'; json: string; fileName: string }
   | { type: 'ERROR'; message: string };

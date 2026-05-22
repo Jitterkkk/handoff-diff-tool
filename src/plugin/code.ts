@@ -3,6 +3,7 @@
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
 import { saveSnapshot, loadSnapshot } from './storage';
+import { exportDiffAsJSON, buildExportFileName } from './export';
 import type { PluginToUIMessage, UIToPluginMessage } from '../shared/types';
 
 figma.showUI(__html__, {
@@ -98,6 +99,13 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
       if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
         figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
       }
+      break;
+    }
+
+    case 'EXPORT_DIFF': {
+      const json = exportDiffAsJSON(msg.diffs, msg.frameName);
+      const fileName = buildExportFileName(msg.frameName);
+      send({ type: 'DIFF_EXPORT', json, fileName });
       break;
     }
   }
