@@ -6,7 +6,8 @@ export type DiffType =
   | 'ADDED'
   | 'REMOVED'
   | 'COMPONENT'
-  | 'LAYOUT';
+  | 'LAYOUT'
+  | 'POSITION';
 
 export type Severity = 'high' | 'medium' | 'low';
 
@@ -100,10 +101,12 @@ export interface SnapshotEntryMeta {
 export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
   | { type: 'SAVE_SNAPSHOT'; frameId: string; label?: string }
-  | { type: 'GET_DIFF'; frameId: string; entryIndex: number }
+  | { type: 'GET_DIFF'; frameId: string; entryIndex: number; includePosition: boolean }
   | { type: 'ZOOM_TO_NODE'; nodeId: string }
   | { type: 'CLEAR_HIGHLIGHTS' }
-  | { type: 'EXPORT_DIFF'; diffs: DiffResult[]; frameName: string };
+  | { type: 'EXPORT_DIFF'; diffs: DiffResult[]; frameName: string }
+  | { type: 'GET_SETTINGS' }
+  | { type: 'SAVE_SETTINGS'; includePosition: boolean };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -113,4 +116,5 @@ export type PluginToUIMessage =
   | { type: 'DIFF_RESULT'; diffs: DiffResult[]; frameId: string; savedAt: number }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
   | { type: 'DIFF_EXPORT'; json: string; fileName: string }
+  | { type: 'SETTINGS'; includePosition: boolean }
   | { type: 'ERROR'; message: string };

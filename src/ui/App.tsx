@@ -22,6 +22,7 @@ interface AppState {
   diffSavedAt: number | null;
   isLoading: 'save' | 'diff' | null;
   error: string | null;
+  includePosition: boolean;
 }
 
 type Action =
@@ -32,6 +33,8 @@ type Action =
   | { type: 'SNAPSHOT_SAVED'; historyEntries: SnapshotEntryMeta[] }
   | { type: 'DIFF_RESULT'; diffs: DiffResult[]; savedAt: number }
   | { type: 'SELECT_VERSION'; index: number }
+  | { type: 'SET_INCLUDE_POSITION'; value: boolean }
+  | { type: 'SETTINGS_LOADED'; includePosition: boolean }
   | { type: 'ERROR'; message: string };
 
 const initial: AppState = {
@@ -42,6 +45,7 @@ const initial: AppState = {
   diffSavedAt: null,
   isLoading: null,
   error: null,
+  includePosition: false,
 };
 
 function mostRecentIndex(entries: SnapshotEntryMeta[]): number {
@@ -81,6 +85,10 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, isLoading: null, diffs: action.diffs, diffSavedAt: action.savedAt };
     case 'SELECT_VERSION':
       return { ...state, selectedEntryIndex: action.index, diffs: null, diffSavedAt: null };
+    case 'SET_INCLUDE_POSITION':
+      return { ...state, includePosition: action.value, diffs: null, diffSavedAt: null };
+    case 'SETTINGS_LOADED':
+      return { ...state, includePosition: action.includePosition };
     case 'ERROR':
       return { ...state, isLoading: null, error: action.message };
   }
@@ -95,6 +103,7 @@ export function App() {
 
   useEffect(() => {
     post({ type: 'GET_CURRENT_FRAME' });
+    post({ type: 'GET_SETTINGS' });
 
     const onMessage = (event: MessageEvent) => {
       const msg = (event.data as { pluginMessage?: PluginToUIMessage }).pluginMessage;
@@ -130,6 +139,9 @@ export function App() {
           URL.revokeObjectURL(url);
           break;
         }
+        case 'SETTINGS':
+          dispatch({ type: 'SETTINGS_LOADED', includePosition: msg.includePosition });
+          break;
         case 'ERROR':
           dispatch({ type: 'ERROR', message: msg.message });
           break;
@@ -149,8 +161,18 @@ export function App() {
   const handleDiff = useCallback(() => {
     if (!state.frame) return;
     dispatch({ type: 'START_DIFF' });
-    post({ type: 'GET_DIFF', frameId: state.frame.id, entryIndex: state.selectedEntryIndex });
-  }, [state.frame, state.selectedEntryIndex]);
+    post({
+      type: 'GET_DIFF',
+      frameId: state.frame.id,
+      entryIndex: state.selectedEntryIndex,
+      includePosition: state.includePosition,
+    });
+  }, [state.frame, state.selectedEntryIndex, state.includePosition]);
+
+  const handleTogglePosition = useCallback((value: boolean) => {
+    dispatch({ type: 'SET_INCLUDE_POSITION', value });
+    post({ type: 'SAVE_SETTINGS', includePosition: value });
+  }, []);
 
   const handleZoom = useCallback((nodeId: string) => {
     post({ type: 'ZOOM_TO_NODE', nodeId });
@@ -196,6 +218,28 @@ export function App() {
             selectedIndex={state.selectedEntryIndex}
             onChange={handleSelectVersion}
           />
+        )}
+
+        {hasSnapshot && (
+          <label style={styles.toggleRow}>
+            <div
+              style={{
+                ...styles.toggle,
+                background: state.includePosition ? '#18a0fb' : '#ddd',
+              }}
+              onClick={() => handleTogglePosition(!state.includePosition)}
+              role="switch"
+              aria-checked={state.includePosition}
+            >
+              <div
+                style={{
+                  ...styles.toggleKnob,
+                  transform: state.includePosition ? 'translateX(14px)' : 'translateX(0)',
+                }}
+              />
+            </div>
+            <span style={styles.toggleLabel}>Incluir mudanças de posição</span>
+          </label>
         )}
 
         {state.diffs !== null && (
@@ -262,6 +306,37 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
     marginBottom: 8,
+  },
+  toggleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 0 10px',
+    cursor: 'pointer',
+  },
+  toggle: {
+    position: 'relative',
+    width: 28,
+    height: 16,
+    borderRadius: 8,
+    flexShrink: 0,
+    transition: 'background 0.15s',
+    cursor: 'pointer',
+  },
+  toggleKnob: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    width: 12,
+    height: 12,
+    borderRadius: '50%',
+    background: '#fff',
+    transition: 'transform 0.15s',
+  },
+  toggleLabel: {
+    fontSize: 11,
+    color: '#555',
+    userSelect: 'none',
   },
   clearBtn: {
     background: 'none',

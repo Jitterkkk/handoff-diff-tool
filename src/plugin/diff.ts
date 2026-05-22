@@ -52,13 +52,22 @@ function push(
   results.push({ nodeId, nodeName, type, before, after, severity });
 }
 
+interface DiffOptions {
+  includePosition?: boolean;
+}
+
 function diffNodes(
   before: NodeSnapshot,
   after: NodeSnapshot,
   results: DiffResult[],
+  options: DiffOptions = {},
 ): void {
   const id = after.id;
   const name = after.name;
+
+  if (options.includePosition && (before.x !== after.x || before.y !== after.y)) {
+    push(results, id, name, 'POSITION', { x: before.x, y: before.y }, { x: after.x, y: after.y }, 'low');
+  }
 
   if (before.width !== after.width || before.height !== after.height) {
     push(
@@ -104,6 +113,7 @@ function diffNodes(
   diffAutoLayout(before.autoLayout, after.autoLayout, id, name, results);
 }
 
+
 const AUTO_LAYOUT_KEYS: ReadonlyArray<keyof AutoLayoutSnapshot> = [
   'layoutMode',
   'itemSpacing',
@@ -146,6 +156,7 @@ function buildIndex(root: NodeSnapshot): Map<string, NodeSnapshot> {
 export function diffSnapshots(
   before: NodeSnapshot,
   after: NodeSnapshot,
+  options: DiffOptions = {},
 ): DiffResult[] {
   const results: DiffResult[] = [];
   const beforeIndex = buildIndex(before);
@@ -156,7 +167,7 @@ export function diffSnapshots(
     if (!beforeNode) {
       push(results, id, afterNode.name, 'ADDED', null, afterNode.name, 'medium');
     } else {
-      diffNodes(beforeNode, afterNode, results);
+      diffNodes(beforeNode, afterNode, results, options);
     }
   });
 

@@ -42,6 +42,25 @@ export async function loadHistory(frameId: string): Promise<SnapshotHistory | nu
   return JSON.parse(json) as SnapshotHistory;
 }
 
+const SETTINGS_KEY = 'handoff:settings';
+
+export interface Settings {
+  includePosition: boolean;
+}
+
+const DEFAULT_SETTINGS: Settings = { includePosition: false };
+
+export async function loadSettings(): Promise<Settings> {
+  const value: unknown = await figma.clientStorage.getAsync(SETTINGS_KEY);
+  if (!value || typeof value !== 'object') return { ...DEFAULT_SETTINGS };
+  const s = value as Partial<Settings>;
+  return { includePosition: s.includePosition ?? false };
+}
+
+export async function saveSettings(settings: Settings): Promise<void> {
+  await figma.clientStorage.setAsync(SETTINGS_KEY, settings);
+}
+
 export function toMetaEntries(history: SnapshotHistory | null): SnapshotEntryMeta[] {
   if (!history) return [];
   return history.entries.map((e, i) => ({

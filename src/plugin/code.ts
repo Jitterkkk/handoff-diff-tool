@@ -2,7 +2,7 @@
 
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
-import { saveToHistory, loadHistory, toMetaEntries } from './storage';
+import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings } from './storage';
 import { exportDiffAsJSON, buildExportFileName } from './export';
 import { createHighlight, clearHighlights } from './highlight';
 import type { PluginToUIMessage, UIToPluginMessage } from '../shared/types';
@@ -89,7 +89,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
       const safeIndex = Math.min(msg.entryIndex, history.entries.length - 1);
       const entry = history.entries[safeIndex];
       const current = takeSnapshot(frame);
-      const diffs = diffSnapshots(entry.snapshot, current);
+      const diffs = diffSnapshots(entry.snapshot, current, { includePosition: msg.includePosition });
       send({ type: 'DIFF_RESULT', diffs, frameId: frame.id, savedAt: entry.savedAt });
       break;
     }
@@ -106,6 +106,17 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
     case 'CLEAR_HIGHLIGHTS': {
       clearHighlights();
+      break;
+    }
+
+    case 'GET_SETTINGS': {
+      const settings = await loadSettings();
+      send({ type: 'SETTINGS', includePosition: settings.includePosition });
+      break;
+    }
+
+    case 'SAVE_SETTINGS': {
+      await saveSettings({ includePosition: msg.includePosition });
       break;
     }
 
