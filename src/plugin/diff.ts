@@ -1,4 +1,5 @@
 import type {
+  AutoLayoutSnapshot,
   DiffResult,
   DiffType,
   NodeSnapshot,
@@ -98,6 +99,37 @@ function diffNodes(
 
   if (before.componentId !== after.componentId) {
     push(results, id, name, 'COMPONENT', before.componentId, after.componentId, 'high');
+  }
+
+  diffAutoLayout(before.autoLayout, after.autoLayout, id, name, results);
+}
+
+const AUTO_LAYOUT_KEYS: ReadonlyArray<keyof AutoLayoutSnapshot> = [
+  'layoutMode',
+  'itemSpacing',
+  'paddingTop',
+  'paddingBottom',
+  'paddingLeft',
+  'paddingRight',
+  'primaryAxisAlignItems',
+];
+
+function diffAutoLayout(
+  before: AutoLayoutSnapshot | undefined,
+  after: AutoLayoutSnapshot | undefined,
+  nodeId: string,
+  nodeName: string,
+  results: DiffResult[],
+): void {
+  if (before === undefined && after === undefined) return;
+
+  if (before === undefined || after === undefined) {
+    push(results, nodeId, nodeName, 'LAYOUT', before ?? null, after ?? null, 'medium');
+    return;
+  }
+
+  if (AUTO_LAYOUT_KEYS.some((k) => before[k] !== after[k])) {
+    push(results, nodeId, nodeName, 'LAYOUT', before, after, 'medium');
   }
 }
 

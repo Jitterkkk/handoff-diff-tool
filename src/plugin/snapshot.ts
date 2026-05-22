@@ -4,6 +4,7 @@ import type {
   NodeSnapshot,
   SerializablePaint,
   SerializableEffect,
+  AutoLayoutSnapshot,
   RGBA,
 } from '../shared/types';
 
@@ -92,6 +93,67 @@ function hasChildren(
   return 'children' in node;
 }
 
+interface AutoLayoutProps {
+  layoutMode: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
+  itemSpacing: number;
+  paddingTop: number;
+  paddingBottom: number;
+  paddingLeft: number;
+  paddingRight: number;
+  primaryAxisAlignItems: 'MIN' | 'MAX' | 'CENTER' | 'SPACE_BETWEEN';
+}
+
+interface WithAutoLayout {
+  layoutMode: AutoLayoutProps['layoutMode'];
+  itemSpacing: number;
+  paddingTop: number;
+  paddingBottom: number;
+  paddingLeft: number;
+  paddingRight: number;
+  primaryAxisAlignItems: AutoLayoutProps['primaryAxisAlignItems'];
+}
+
+interface WithInferredAutoLayout {
+  inferredAutoLayout: AutoLayoutProps | null;
+}
+
+function hasLayoutMode(node: SceneNode): node is SceneNode & WithAutoLayout {
+  return 'layoutMode' in node;
+}
+
+function hasInferredAutoLayout(node: SceneNode): node is SceneNode & WithInferredAutoLayout {
+  return 'inferredAutoLayout' in node;
+}
+
+function getAutoLayout(node: SceneNode): AutoLayoutSnapshot | undefined {
+  if (hasInferredAutoLayout(node) && node.inferredAutoLayout != null) {
+    const al = node.inferredAutoLayout;
+    return {
+      layoutMode: al.layoutMode,
+      itemSpacing: al.itemSpacing,
+      paddingTop: al.paddingTop,
+      paddingBottom: al.paddingBottom,
+      paddingLeft: al.paddingLeft,
+      paddingRight: al.paddingRight,
+      primaryAxisAlignItems: al.primaryAxisAlignItems,
+    };
+  }
+
+  if (hasLayoutMode(node)) {
+    return {
+      layoutMode: node.layoutMode,
+      itemSpacing: node.itemSpacing,
+      paddingTop: node.paddingTop,
+      paddingBottom: node.paddingBottom,
+      paddingLeft: node.paddingLeft,
+      paddingRight: node.paddingRight,
+      primaryAxisAlignItems: node.primaryAxisAlignItems,
+    };
+  }
+
+  return undefined;
+}
+
 export function takeSnapshot(node: SceneNode): NodeSnapshot {
   const layout = hasLayout(node)
     ? { x: node.x, y: node.y, width: node.width, height: node.height }
@@ -124,6 +186,11 @@ export function takeSnapshot(node: SceneNode): NodeSnapshot {
     visible,
     children: [],
   };
+
+  const autoLayout = getAutoLayout(node);
+  if (autoLayout !== undefined) {
+    snapshot.autoLayout = autoLayout;
+  }
 
   if (node.type === 'TEXT') {
     snapshot.characters = node.characters;

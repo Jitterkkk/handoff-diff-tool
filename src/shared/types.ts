@@ -5,7 +5,8 @@ export type DiffType =
   | 'CONTENT'
   | 'ADDED'
   | 'REMOVED'
-  | 'COMPONENT';
+  | 'COMPONENT'
+  | 'LAYOUT';
 
 export type Severity = 'high' | 'medium' | 'low';
 
@@ -37,6 +38,16 @@ export interface SerializableEffect {
   color?: RGBA;
 }
 
+export interface AutoLayoutSnapshot {
+  layoutMode: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
+  itemSpacing: number;
+  paddingTop: number;
+  paddingBottom: number;
+  paddingLeft: number;
+  paddingRight: number;
+  primaryAxisAlignItems: 'MIN' | 'MAX' | 'CENTER' | 'SPACE_BETWEEN';
+}
+
 export interface NodeSnapshot {
   id: string;
   name: string;
@@ -53,6 +64,7 @@ export interface NodeSnapshot {
   characters?: string;
   fontSize?: number;
   componentId?: string;
+  autoLayout?: AutoLayoutSnapshot;
   children: NodeSnapshot[];
 }
 
