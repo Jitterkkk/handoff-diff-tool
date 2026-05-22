@@ -46,20 +46,26 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         send({ type: 'ERROR', message: 'Selecione um frame antes de salvar.' });
         break;
       }
-      const snapshot = takeSnapshot(frame);
-      const record = {
-        frameId: frame.id,
-        frameName: frame.name,
-        snapshot,
-        savedAt: Date.now(),
-      };
-      await saveSnapshot(record);
-      send({
-        type: 'SNAPSHOT_SAVED',
-        frameId: frame.id,
-        frameName: frame.name,
-        savedAt: record.savedAt,
-      });
+      try {
+        const snapshot = takeSnapshot(frame);
+        const record = {
+          frameId: frame.id,
+          frameName: frame.name,
+          snapshot,
+          savedAt: Date.now(),
+        };
+        await saveSnapshot(record);
+        send({
+          type: 'SNAPSHOT_SAVED',
+          frameId: frame.id,
+          frameName: frame.name,
+          savedAt: record.savedAt,
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Erro desconhecido ao salvar snapshot.';
+        send({ type: 'ERROR', message });
+      }
       break;
     }
 
