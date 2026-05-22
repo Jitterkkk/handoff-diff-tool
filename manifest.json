@@ -1,0 +1,12 @@
+{
+  "name": "Handoff Diff Tool",
+  "id": "handoff-diff-tool",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/index.html",
+  "editorType": ["figma"],
+  "permissions": ["currentUser", "activeUsers", "fileUsers", "payments"],
+  "networkAccess": {
+    "allowedDomains": []
+  }
+}
