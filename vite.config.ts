@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   if (mode === 'plugin') {
     return {
       build: {
+        target: 'es2017', // Figma sandbox não suporta ES2020 (optional chaining, nullish coalescing)
         lib: {
           entry: resolve(__dirname, 'src/plugin/code.ts'),
           formats: ['iife'],
