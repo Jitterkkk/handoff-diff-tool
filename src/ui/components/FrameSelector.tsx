@@ -6,30 +6,28 @@ interface FrameInfo {
 interface Props {
   frames: FrameInfo[];
   hasAnySnapshot: boolean;
-  snapshotSavedAt: number | null;
-  isLoading: 'save' | 'diff' | null;
-  onSave: () => void;
-  onDiff: () => void;
+  sessionStart: number | null;
+  isLoading: 'baseline' | 'report' | 'diff' | null;
+  onGenerateReport: () => void;
+  onPreviewDiff: () => void;
 }
 
 export function FrameSelector({
   frames,
   hasAnySnapshot,
-  snapshotSavedAt,
+  sessionStart,
   isLoading,
-  onSave,
-  onDiff,
+  onGenerateReport,
+  onPreviewDiff,
 }: Props) {
   const hasFrames = frames.length > 0;
   const isMulti = frames.length > 1;
-  const canSave = hasFrames && isLoading === null;
-  const canDiff = hasFrames && hasAnySnapshot && isLoading === null;
+  const sessionActive = sessionStart !== null && sessionStart > 0;
+  const canAct = hasFrames && hasAnySnapshot && isLoading === null;
 
   function renderFrameLabel() {
     if (!hasFrames) return <span style={styles.noFrame}>Nenhum frame selecionado</span>;
-    if (isMulti) {
-      return <span style={styles.frameName}>{frames.length} frames selecionados</span>;
-    }
+    if (isMulti) return <span style={styles.frameName}>{frames.length} frames selecionados</span>;
     return <span style={styles.frameName}>{frames[0].name}</span>;
   }
 
@@ -45,54 +43,63 @@ export function FrameSelector({
       {isMulti && (
         <div style={styles.frameList}>
           {frames.map((f) => (
-            <span key={f.id} style={styles.frameChip}>
-              {f.name}
-            </span>
+            <span key={f.id} style={styles.frameChip}>{f.name}</span>
           ))}
         </div>
       )}
 
-      {!isMulti && snapshotSavedAt !== null && (
-        <div style={styles.savedBadge}>
-          Versão salva em {new Date(snapshotSavedAt).toLocaleTimeString('pt-BR')}
+      {sessionActive && !isMulti && (
+        <div style={styles.sessionBadge}>
+          ● Sessão ativa desde{' '}
+          {new Date(sessionStart!).toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
         </div>
       )}
 
-      <div style={styles.actions}>
-        <button
-          style={{ ...styles.btn, ...styles.btnSecondary, opacity: canSave ? 1 : 0.45 }}
-          disabled={!canSave}
-          onClick={onSave}
-        >
-          {isLoading === 'save'
-            ? 'Salvando…'
-            : isMulti
-              ? `Salvar ${frames.length} frames`
-              : 'Salvar versão atual'}
-        </button>
+      {isLoading === 'baseline' && (
+        <div style={styles.loadingBadge}>Capturando baseline…</div>
+      )}
 
+      <div style={styles.actions}>
+        {/* Preview diff — secondary */}
         <span
-          style={{ flex: 1, cursor: canDiff ? 'default' : 'not-allowed' }}
-          title={
-            !hasFrames
-              ? 'Selecione um frame para comparar'
-              : !hasAnySnapshot
-                ? 'Salve uma versão antes de comparar'
-                : undefined
-          }
+          style={{ flex: 1, cursor: canAct ? 'default' : 'not-allowed' }}
+          title={!hasFrames ? 'Selecione um frame' : !hasAnySnapshot ? 'Aguarde o baseline ser capturado' : undefined}
+        >
+          <button
+            style={{
+              ...styles.btn,
+              ...styles.btnSecondary,
+              opacity: canAct ? 1 : 0.45,
+              pointerEvents: canAct ? 'auto' : 'none',
+              width: '100%',
+            }}
+            disabled={!canAct}
+            onClick={onPreviewDiff}
+          >
+            {isLoading === 'diff' ? 'Comparando…' : 'Ver mudanças'}
+          </button>
+        </span>
+
+        {/* Generate report — primary */}
+        <span
+          style={{ flex: 2, cursor: canAct ? 'default' : 'not-allowed' }}
+          title={!hasFrames ? 'Selecione um frame' : !hasAnySnapshot ? 'Aguarde o baseline ser capturado' : undefined}
         >
           <button
             style={{
               ...styles.btn,
               ...styles.btnPrimary,
-              opacity: canDiff ? 1 : 0.45,
-              pointerEvents: canDiff ? 'auto' : 'none',
+              opacity: canAct ? 1 : 0.45,
+              pointerEvents: canAct ? 'auto' : 'none',
               width: '100%',
             }}
-            disabled={!canDiff}
-            onClick={onDiff}
+            disabled={!canAct}
+            onClick={onGenerateReport}
           >
-            {isLoading === 'diff' ? 'Comparando…' : 'Ver o que mudou'}
+            {isLoading === 'report' ? 'Gerando relatório…' : '↓ Gerar Relatório'}
           </button>
         </span>
       </div>
@@ -149,12 +156,20 @@ const styles = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
   },
-  savedBadge: {
+  sessionBadge: {
     fontSize: 10,
     color: '#2e7d32',
     background: '#e8f5e9',
     borderRadius: 4,
-    padding: '3px 6px',
+    padding: '3px 8px',
+    alignSelf: 'flex-start',
+  },
+  loadingBadge: {
+    fontSize: 10,
+    color: '#e65100',
+    background: '#fff3e0',
+    borderRadius: 4,
+    padding: '3px 8px',
     alignSelf: 'flex-start',
   },
   actions: {

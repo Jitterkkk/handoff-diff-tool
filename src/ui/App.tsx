@@ -12,27 +12,30 @@ import { DiffList } from './components/DiffList';
 
 interface AppState {
   frames: FrameMeta[];
+  sessionStart: number | null;
   selectedEntryIndex: number;
   frameDiffs: FrameDiffGroup[] | null;
-  isLoading: 'save' | 'diff' | null;
+  isLoading: 'baseline' | 'report' | 'diff' | null;
   error: string | null;
   includePosition: boolean;
 }
 
 type Action =
-  | { type: 'FRAMES_UPDATED'; frames: FrameMeta[] }
+  | { type: 'FRAMES_UPDATED'; frames: FrameMeta[]; sessionStart: number }
   | { type: 'NO_FRAME' }
-  | { type: 'START_SAVE' }
+  | { type: 'START_BASELINE' }
+  | { type: 'START_REPORT' }
   | { type: 'START_DIFF' }
-  | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
   | { type: 'DIFF_RESULT'; frameDiffs: FrameDiffGroup[] }
   | { type: 'SELECT_VERSION'; index: number }
   | { type: 'SET_INCLUDE_POSITION'; value: boolean }
   | { type: 'SETTINGS_LOADED'; includePosition: boolean }
+  | { type: 'REPORT_DONE' }
   | { type: 'ERROR'; message: string };
 
 const initial: AppState = {
   frames: [],
+  sessionStart: null,
   selectedEntryIndex: 0,
   frameDiffs: null,
   isLoading: null,
@@ -54,6 +57,8 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         frames: action.frames,
+        sessionStart: action.sessionStart || state.sessionStart,
+        isLoading: null,
         selectedEntryIndex: sameFrames
           ? state.selectedEntryIndex
           : mostRecentIndex(singleHistory),
@@ -63,22 +68,16 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'NO_FRAME':
       return { ...initial, includePosition: state.includePosition };
-    case 'START_SAVE':
-      return { ...state, isLoading: 'save', error: null };
+    case 'START_BASELINE':
+      return { ...state, isLoading: 'baseline', error: null };
+    case 'START_REPORT':
+      return { ...state, isLoading: 'report', error: null, frameDiffs: null };
     case 'START_DIFF':
       return { ...state, isLoading: 'diff', error: null };
-    case 'SNAPSHOT_SAVED': {
-      const singleHistory = action.frames[0]?.historyEntries ?? [];
-      return {
-        ...state,
-        isLoading: null,
-        frames: action.frames,
-        selectedEntryIndex: mostRecentIndex(singleHistory),
-        frameDiffs: null,
-      };
-    }
     case 'DIFF_RESULT':
       return { ...state, isLoading: null, frameDiffs: action.frameDiffs };
+    case 'REPORT_DONE':
+      return { ...state, isLoading: null };
     case 'SELECT_VERSION':
       return { ...state, selectedEntryIndex: action.index, frameDiffs: null };
     case 'SET_INCLUDE_POSITION':
@@ -98,6 +97,7 @@ export function App() {
   const [state, dispatch] = useReducer(reducer, initial);
 
   useEffect(() => {
+    dispatch({ type: 'START_BASELINE' });
     post({ type: 'GET_CURRENT_FRAME' });
     post({ type: 'GET_SETTINGS' });
 
@@ -107,13 +107,17 @@ export function App() {
 
       switch (msg.type) {
         case 'CURRENT_FRAMES':
-          dispatch({ type: 'FRAMES_UPDATED', frames: msg.frames });
+          dispatch({
+            type: 'FRAMES_UPDATED',
+            frames: msg.frames,
+            sessionStart: msg.sessionStart,
+          });
           break;
         case 'NO_FRAME_SELECTED':
           dispatch({ type: 'NO_FRAME' });
           break;
         case 'SNAPSHOT_SAVED':
-          dispatch({ type: 'SNAPSHOT_SAVED', frames: msg.frames });
+          dispatch({ type: 'FRAMES_UPDATED', frames: msg.frames, sessionStart: state.sessionStart ?? 0 });
           break;
         case 'DIFF_RESULT':
           dispatch({ type: 'DIFF_RESULT', frameDiffs: msg.frameDiffs });
@@ -121,6 +125,17 @@ export function App() {
         case 'NO_PREVIOUS_SNAPSHOT':
           dispatch({ type: 'ERROR', message: 'Nenhuma versão salva para comparar.' });
           break;
+        case 'REPORT_READY': {
+          dispatch({ type: 'REPORT_DONE' });
+          const blob = new Blob([msg.html], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = msg.fileName;
+          a.click();
+          URL.revokeObjectURL(url);
+          break;
+        }
         case 'DIFF_EXPORT': {
           const blob = new Blob([msg.json], { type: 'application/json' });
           const url = URL.createObjectURL(blob);
@@ -142,23 +157,25 @@ export function App() {
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── derived ────────────────────────────────────────────────────────────────
   const isSingleFrame = state.frames.length === 1;
   const hasAnySnapshot = state.frames.some((f) => f.historyEntries.length > 0);
-  const singleHistory: SnapshotEntryMeta[] = isSingleFrame
-    ? state.frames[0].historyEntries
-    : [];
-  const snapshotSavedAt =
-    isSingleFrame
-      ? (singleHistory[singleHistory.length - 1]?.savedAt ?? null)
-      : null;
+  const singleHistory: SnapshotEntryMeta[] = isSingleFrame ? state.frames[0].historyEntries : [];
+  const sessionActive = state.sessionStart !== null && state.sessionStart > 0;
 
-  const handleSave = useCallback(() => {
+  // ── handlers ───────────────────────────────────────────────────────────────
+  const handleGenerateReport = useCallback(() => {
     if (state.frames.length === 0) return;
-    dispatch({ type: 'START_SAVE' });
-    post({ type: 'SAVE_SNAPSHOT' });
-  }, [state.frames.length]);
+    dispatch({ type: 'START_REPORT' });
+    post({
+      type: 'GENERATE_REPORT',
+      entryIndex: state.selectedEntryIndex,
+      includePosition: state.includePosition,
+    });
+  }, [state.frames.length, state.selectedEntryIndex, state.includePosition]);
 
   const handleDiff = useCallback(() => {
     if (state.frames.length === 0) return;
@@ -174,7 +191,7 @@ export function App() {
     post({ type: 'ZOOM_TO_NODE', nodeId });
   }, []);
 
-  const handleExport = useCallback(() => {
+  const handleExportJSON = useCallback(() => {
     if (!state.frameDiffs) return;
     post({ type: 'EXPORT_DIFF', frameDiffs: state.frameDiffs });
   }, [state.frameDiffs]);
@@ -200,19 +217,22 @@ export function App() {
       <FrameSelector
         frames={state.frames}
         hasAnySnapshot={hasAnySnapshot}
-        snapshotSavedAt={snapshotSavedAt}
+        sessionStart={state.sessionStart}
         isLoading={state.isLoading}
-        onSave={handleSave}
-        onDiff={handleDiff}
+        onGenerateReport={handleGenerateReport}
+        onPreviewDiff={handleDiff}
       />
 
       <div style={styles.content}>
         {state.error && <p style={styles.error}>{state.error}</p>}
 
         {noFrames && <EmptyNoFrame />}
-        {showGuide && <EmptyNoSnapshot />}
+        {showGuide && !state.isLoading && <EmptyNoSnapshot />}
+        {state.isLoading === 'baseline' && (
+          <div style={styles.loadingMsg}>Capturando baseline do frame…</div>
+        )}
 
-        {isSingleFrame && singleHistory.length > 0 && (
+        {isSingleFrame && singleHistory.length > 1 && (
           <VersionSelector
             entries={singleHistory}
             selectedIndex={state.selectedEntryIndex}
@@ -223,10 +243,7 @@ export function App() {
         {isSingleFrame && singleHistory.length > 0 && (
           <label style={styles.toggleRow}>
             <div
-              style={{
-                ...styles.toggle,
-                background: state.includePosition ? '#18a0fb' : '#ddd',
-              }}
+              style={{ ...styles.toggle, background: state.includePosition ? '#18a0fb' : '#ddd' }}
               onClick={() => handleTogglePosition(!state.includePosition)}
               role="switch"
               aria-checked={state.includePosition}
@@ -242,14 +259,26 @@ export function App() {
           </label>
         )}
 
+        {sessionActive && hasAnySnapshot && state.frameDiffs === null && !state.isLoading && (
+          <div style={styles.sessionBanner}>
+            <span style={styles.sessionDot} />
+            Sessão ativa desde{' '}
+            {new Date(state.sessionStart!).toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+            {' '}— clique em <strong>Gerar Relatório</strong> quando terminar
+          </div>
+        )}
+
         {state.frameDiffs !== null && (
           <>
-            <div style={styles.exportBar}>
+            <div style={styles.actionBar}>
               <button style={styles.clearBtn} onClick={handleClearHighlights}>
                 ✕ Limpar highlights
               </button>
-              <button style={styles.exportBtn} onClick={handleExport}>
-                ↓ Exportar JSON
+              <button style={styles.secondaryBtn} onClick={handleExportJSON}>
+                ↓ JSON
               </button>
             </div>
 
@@ -278,12 +307,10 @@ export function App() {
 function EmptyNoFrame() {
   return (
     <div style={emptyStyles.wrap}>
-      <div style={emptyStyles.icon}>
-        <div style={emptyStyles.frameIcon} />
-      </div>
+      <div style={emptyStyles.icon}><div style={emptyStyles.frameIcon} /></div>
       <p style={emptyStyles.title}>Nenhum frame selecionado</p>
       <p style={emptyStyles.description}>
-        Clique em um frame no canvas do Figma para começar a usar o Handoff Diff Tool.
+        Clique em um frame no canvas do Figma para começar.
       </p>
     </div>
   );
@@ -293,14 +320,11 @@ function EmptyNoSnapshot() {
   return (
     <div style={emptyStyles.wrap}>
       <div style={emptyStyles.icon}>
-        <div style={emptyStyles.snapshotIcon}>
-          <div style={emptyStyles.snapshotInner} />
-        </div>
+        <div style={emptyStyles.snapshotIcon}><div style={emptyStyles.snapshotInner} /></div>
       </div>
-      <p style={emptyStyles.title}>Nenhuma versão salva</p>
+      <p style={emptyStyles.title}>Aguardando baseline…</p>
       <p style={emptyStyles.description}>
-        Clique em <strong style={{ color: '#1e1e1e' }}>Salvar versão atual</strong> para
-        registrar o estado do frame agora. Depois é só voltar aqui e ver o que mudou.
+        Selecione um frame para o plugin capturar o estado inicial automaticamente.
       </p>
     </div>
   );
@@ -316,6 +340,31 @@ const styles = {
     color: '#c0392b',
     fontSize: '11px',
     marginTop: 8,
+  },
+  loadingMsg: {
+    fontSize: 11,
+    color: '#888',
+    padding: '12px 0',
+    textAlign: 'center' as const,
+  },
+  sessionBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 7,
+    background: '#e8f5e9',
+    border: '1px solid #c8e6c9',
+    borderRadius: 7,
+    padding: '8px 12px',
+    fontSize: 11,
+    color: '#2e7d32',
+    marginBottom: 10,
+  },
+  sessionDot: {
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    background: '#2e7d32',
+    flexShrink: 0,
   },
   toggleRow: {
     display: 'flex',
@@ -348,7 +397,7 @@ const styles = {
     color: '#555',
     userSelect: 'none',
   },
-  exportBar: {
+  actionBar: {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: 6,
@@ -364,7 +413,7 @@ const styles = {
     color: '#c0392b',
     cursor: 'pointer',
   },
-  exportBtn: {
+  secondaryBtn: {
     background: 'none',
     border: '1px solid #ddd',
     borderRadius: 5,
@@ -408,9 +457,7 @@ const emptyStyles = {
     padding: '32px 20px 0',
     gap: 10,
   },
-  icon: {
-    marginBottom: 4,
-  },
+  icon: { marginBottom: 4 },
   frameIcon: {
     width: 36,
     height: 36,

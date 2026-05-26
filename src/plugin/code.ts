@@ -5,7 +5,13 @@ import { diffSnapshots } from './diff';
 import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings } from './storage';
 import { exportDiffAsJSON, buildExportFileName } from './export';
 import { createHighlight, clearHighlights } from './highlight';
-import type { FrameDiffGroup, FrameMeta, PluginToUIMessage, UIToPluginMessage } from '../shared/types';
+import { generateHTMLReport, buildReportFileName } from './reportGenerator';
+import type {
+  FrameDiffGroup,
+  FrameMeta,
+  PluginToUIMessage,
+  UIToPluginMessage,
+} from '../shared/types';
 
 figma.showUI(__html__, {
   width: 380,
@@ -23,50 +29,85 @@ function getSelectedFrames(): FrameNode[] {
   );
 }
 
+// ─── session state (in-memory, lives while plugin is open) ───────────────────
+
+let sessionStart = 0;
+const baselinePngs = new Map<string, string>(); // frameId → base64 PNG
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+async function exportFramePng(frame: FrameNode): Promise<string | null> {
+  try {
+    const bytes = await frame.exportAsync({
+      format: 'PNG',
+      constraint: { type: 'SCALE', value: 1 },
+    });
+    return uint8ToBase64(bytes);
+  } catch {
+    return null;
+  }
+}
+
+async function exportNodePng(node: SceneNode): Promise<string | null> {
+  try {
+    const bytes = await (node as FrameNode).exportAsync({
+      format: 'PNG',
+      constraint: { type: 'SCALE', value: 1 },
+    });
+    return uint8ToBase64(bytes);
+  } catch {
+    return null;
+  }
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
 async function buildFrameMeta(frame: FrameNode): Promise<FrameMeta> {
   const history = await loadHistory(frame.id);
   return { id: frame.id, name: frame.name, historyEntries: toMetaEntries(history) };
 }
 
-async function notifyCurrentFrames(): Promise<void> {
+async function captureBaselines(frames: FrameNode[]): Promise<void> {
+  sessionStart = Date.now();
+  await Promise.all(
+    frames.map(async (frame) => {
+      // Auto-save snapshot as baseline
+      const snapshot = takeSnapshot(frame);
+      await saveToHistory(frame.id, frame.name, snapshot);
+      // Capture PNG
+      const png = await exportFramePng(frame);
+      if (png) baselinePngs.set(frame.id, png);
+    }),
+  );
+}
+
+async function notifyCurrentFrames(withBaseline = false): Promise<void> {
   const frames = getSelectedFrames();
   if (frames.length === 0) {
     send({ type: 'NO_FRAME_SELECTED' });
     return;
   }
+  if (withBaseline) {
+    await captureBaselines(frames);
+  }
   const metas = await Promise.all(frames.map(buildFrameMeta));
-  send({ type: 'CURRENT_FRAMES', frames: metas });
+  send({ type: 'CURRENT_FRAMES', frames: metas, sessionStart });
 }
+
+// ─── message handler ─────────────────────────────────────────────────────────
 
 figma.ui.onmessage = async (raw: unknown): Promise<void> => {
   const msg = raw as UIToPluginMessage;
 
   switch (msg.type) {
     case 'GET_CURRENT_FRAME': {
-      await notifyCurrentFrames();
-      break;
-    }
-
-    case 'SAVE_SNAPSHOT': {
-      const frames = getSelectedFrames();
-      if (frames.length === 0) {
-        send({ type: 'ERROR', message: 'Selecione ao menos um frame antes de salvar.' });
-        break;
-      }
-      try {
-        const metas = await Promise.all(
-          frames.map(async (frame) => {
-            const snapshot = takeSnapshot(frame);
-            const history = await saveToHistory(frame.id, frame.name, snapshot, msg.label);
-            return { id: frame.id, name: frame.name, historyEntries: toMetaEntries(history) };
-          }),
-        );
-        send({ type: 'SNAPSHOT_SAVED', frames: metas });
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Erro desconhecido ao salvar snapshot.';
-        send({ type: 'ERROR', message });
-      }
+      // First call: capture baselines; subsequent calls (selection change): just notify
+      const isFirstOpen = sessionStart === 0;
+      await notifyCurrentFrames(isFirstOpen);
       break;
     }
 
@@ -76,7 +117,6 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         send({ type: 'ERROR', message: 'Selecione ao menos um frame para comparar.' });
         break;
       }
-
       const isMulti = frames.length > 1;
       const frameDiffs: FrameDiffGroup[] = [];
       let anyHadHistory = false;
@@ -85,7 +125,6 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         const history = await loadHistory(frame.id);
         if (!history || history.entries.length === 0) continue;
         anyHadHistory = true;
-        // multi-frame: sempre mais recente; single-frame: respeita entryIndex do seletor
         const idx = isMulti
           ? history.entries.length - 1
           : Math.min(msg.entryIndex, history.entries.length - 1);
@@ -102,6 +141,79 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
       } else {
         send({ type: 'DIFF_RESULT', frameDiffs });
       }
+      break;
+    }
+
+    case 'GENERATE_REPORT': {
+      const frames = getSelectedFrames();
+      if (frames.length === 0) {
+        send({ type: 'ERROR', message: 'Selecione ao menos um frame para gerar o relatório.' });
+        break;
+      }
+
+      const isMulti = frames.length > 1;
+      const reportFrames = [];
+      let anyHadHistory = false;
+
+      for (const frame of frames) {
+        const history = await loadHistory(frame.id);
+        if (!history || history.entries.length === 0) continue;
+        anyHadHistory = true;
+
+        const idx = isMulti
+          ? history.entries.length - 1
+          : Math.min(msg.entryIndex, history.entries.length - 1);
+        const entry = history.entries[idx];
+
+        const finalSnapshot = takeSnapshot(frame);
+        const diffs = diffSnapshots(entry.snapshot, finalSnapshot, {
+          includePosition: msg.includePosition,
+        });
+
+        // Export final frame PNG
+        const afterPng = await exportFramePng(frame);
+
+        // Export individual node PNGs for changed/added nodes
+        const nodePngs: Record<string, string> = {};
+        const nodeTypes: Record<string, string> = {};
+        for (const diff of diffs) {
+          if (diff.type === 'REMOVED') continue;
+          const node = figma.getNodeById(diff.nodeId);
+          if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
+            nodeTypes[diff.nodeId] = node.type;
+            const png = await exportNodePng(node as SceneNode);
+            if (png) nodePngs[diff.nodeId] = png;
+          }
+        }
+
+        reportFrames.push({
+          group: {
+            frameId: frame.id,
+            frameName: frame.name,
+            diffs,
+            savedAt: entry.savedAt,
+          },
+          beforePng: baselinePngs.get(frame.id) ?? null,
+          afterPng,
+          nodePngs,
+          nodeTypes,
+        });
+      }
+
+      if (!anyHadHistory) {
+        send({ type: 'NO_PREVIOUS_SNAPSHOT' });
+        break;
+      }
+
+      const designerName = figma.currentUser?.name ?? 'Designer';
+      const html = generateHTMLReport({
+        designerName,
+        sessionStart: sessionStart || Date.now(),
+        reportAt: Date.now(),
+        frames: reportFrames,
+      });
+      const fileName = buildReportFileName(reportFrames.map(f => ({ frameName: f.group.frameName })));
+      send({ type: 'REPORT_READY', html, fileName });
       break;
     }
 
@@ -140,4 +252,4 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
   }
 };
 
-figma.on('selectionchange', () => { void notifyCurrentFrames(); });
+figma.on('selectionchange', () => { void notifyCurrentFrames(false); });

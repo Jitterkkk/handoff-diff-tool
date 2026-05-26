@@ -115,8 +115,8 @@ export interface FrameDiffGroup {
 // UI → Plugin
 export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
-  | { type: 'SAVE_SNAPSHOT'; label?: string }
   | { type: 'GET_DIFF'; entryIndex: number; includePosition: boolean }
+  | { type: 'GENERATE_REPORT'; entryIndex: number; includePosition: boolean }
   | { type: 'ZOOM_TO_NODE'; nodeId: string }
   | { type: 'CLEAR_HIGHLIGHTS' }
   | { type: 'EXPORT_DIFF'; frameDiffs: FrameDiffGroup[] }
@@ -125,11 +125,12 @@ export type UIToPluginMessage =
 
 // Plugin → UI
 export type PluginToUIMessage =
-  | { type: 'CURRENT_FRAMES'; frames: FrameMeta[] }
+  | { type: 'CURRENT_FRAMES'; frames: FrameMeta[]; sessionStart: number }
   | { type: 'NO_FRAME_SELECTED' }
   | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
   | { type: 'DIFF_RESULT'; frameDiffs: FrameDiffGroup[] }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
   | { type: 'DIFF_EXPORT'; json: string; fileName: string }
+  | { type: 'REPORT_READY'; html: string; fileName: string }
   | { type: 'SETTINGS'; includePosition: boolean }
   | { type: 'ERROR'; message: string };
