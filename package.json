@@ -2,6 +2,22 @@
   "name": "handoff-diff-tool",
   "version": "0.1.0",
   "private": true,
+  "author": {
+    "name": "Leonardo Biazus",
+    "email": "biazusdev@gmail.com",
+    "url": "https://github.com/Jitterkkk"
+  },
+  "contributors": [
+    {
+      "name": "Leonardo Biazus",
+      "email": "biazusdev@gmail.com",
+      "url": "https://github.com/Jitterkkk"
+    },
+    {
+      "name": "Claude (Anthropic)",
+      "url": "https://anthropic.com"
+    }
+  ],
   "scripts": {
     "build:ui": "vite build",
     "build:plugin": "vite build --mode plugin",
