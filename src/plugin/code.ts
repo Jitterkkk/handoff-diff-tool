@@ -33,6 +33,7 @@ function getSelectedFrames(): FrameNode[] {
 
 let sessionStart = 0;
 const baselinePngs = new Map<string, string>(); // frameId → base64 PNG
+const capturingFrameIds = new Set<string>(); // frames with baseline capture in progress
 
 function uint8ToBase64(bytes: Uint8Array): string {
   let bin = '';
@@ -72,17 +73,30 @@ async function buildFrameMeta(frame: FrameNode): Promise<FrameMeta> {
 }
 
 async function captureBaselines(frames: FrameNode[]): Promise<void> {
-  sessionStart = Date.now();
+  if (sessionStart === 0) sessionStart = Date.now();
   await Promise.all(
     frames.map(async (frame) => {
-      // Auto-save snapshot as baseline
+      capturingFrameIds.add(frame.id);
       const snapshot = takeSnapshot(frame);
       await saveToHistory(frame.id, frame.name, snapshot);
-      // Capture PNG
-      const png = await exportFramePng(frame);
-      if (png) baselinePngs.set(frame.id, png);
+      capturingFrameIds.delete(frame.id);
+      // PNG export is fire-and-forget so it doesn't block the UI update
+      void exportFramePng(frame).then(png => {
+        if (png) baselinePngs.set(frame.id, png);
+      });
     }),
   );
+}
+
+// Captures baseline only for frames that don't have history yet (idempotent)
+async function ensureBaselines(frames: FrameNode[]): Promise<void> {
+  const candidates = frames.filter(f => !capturingFrameIds.has(f.id));
+  const toCapture: FrameNode[] = [];
+  for (const frame of candidates) {
+    const history = await loadHistory(frame.id);
+    if (!history || history.entries.length === 0) toCapture.push(frame);
+  }
+  if (toCapture.length > 0) await captureBaselines(toCapture);
 }
 
 async function notifyCurrentFrames(withBaseline = false): Promise<void> {
@@ -91,9 +105,7 @@ async function notifyCurrentFrames(withBaseline = false): Promise<void> {
     send({ type: 'NO_FRAME_SELECTED' });
     return;
   }
-  if (withBaseline) {
-    await captureBaselines(frames);
-  }
+  if (withBaseline) await ensureBaselines(frames);
   const metas = await Promise.all(frames.map(buildFrameMeta));
   send({ type: 'CURRENT_FRAMES', frames: metas, sessionStart });
 }
@@ -105,9 +117,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
   switch (msg.type) {
     case 'GET_CURRENT_FRAME': {
-      // First call: capture baselines; subsequent calls (selection change): just notify
-      const isFirstOpen = sessionStart === 0;
-      await notifyCurrentFrames(isFirstOpen);
+      await notifyCurrentFrames(true);
       break;
     }
 
@@ -252,4 +262,4 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
   }
 };
 
-figma.on('selectionchange', () => { void notifyCurrentFrames(false); });
+figma.on('selectionchange', () => { void notifyCurrentFrames(true); });
