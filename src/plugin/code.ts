@@ -155,75 +155,82 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
     }
 
     case 'GENERATE_REPORT': {
-      const frames = getSelectedFrames();
-      if (frames.length === 0) {
-        send({ type: 'ERROR', message: 'Selecione ao menos um frame para gerar o relatório.' });
-        break;
-      }
-
-      const isMulti = frames.length > 1;
-      const reportFrames = [];
-      let anyHadHistory = false;
-
-      for (const frame of frames) {
-        const history = await loadHistory(frame.id);
-        if (!history || history.entries.length === 0) continue;
-        anyHadHistory = true;
-
-        const idx = isMulti
-          ? history.entries.length - 1
-          : Math.min(msg.entryIndex, history.entries.length - 1);
-        const entry = history.entries[idx];
-
-        const finalSnapshot = takeSnapshot(frame);
-        const diffs = diffSnapshots(entry.snapshot, finalSnapshot, {
-          includePosition: msg.includePosition,
-        });
-
-        // Export final frame PNG
-        const afterPng = await exportFramePng(frame);
-
-        // Export individual node PNGs for changed/added nodes
-        const nodePngs: Record<string, string> = {};
-        const nodeTypes: Record<string, string> = {};
-        for (const diff of diffs) {
-          if (diff.type === 'REMOVED') continue;
-          const node = figma.getNodeById(diff.nodeId);
-          if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
-            nodeTypes[diff.nodeId] = node.type;
-            const png = await exportNodePng(node as SceneNode);
-            if (png) nodePngs[diff.nodeId] = png;
-          }
+      try {
+        const frames = getSelectedFrames();
+        if (frames.length === 0) {
+          send({ type: 'ERROR', message: 'Selecione ao menos um frame para gerar o relatório.' });
+          break;
         }
 
-        reportFrames.push({
-          group: {
-            frameId: frame.id,
-            frameName: frame.name,
-            diffs,
-            savedAt: entry.savedAt,
-          },
-          beforePng: baselinePngs.get(frame.id) ?? null,
-          afterPng,
-          nodePngs,
-          nodeTypes,
+        const isMulti = frames.length > 1;
+        const reportFrames = [];
+        let anyHadHistory = false;
+
+        for (const frame of frames) {
+          const history = await loadHistory(frame.id);
+          if (!history || history.entries.length === 0) continue;
+          anyHadHistory = true;
+
+          const idx = isMulti
+            ? history.entries.length - 1
+            : Math.min(msg.entryIndex, history.entries.length - 1);
+          const entry = history.entries[idx];
+
+          const finalSnapshot = takeSnapshot(frame);
+          const diffs = diffSnapshots(entry.snapshot, finalSnapshot, {
+            includePosition: msg.includePosition,
+          });
+
+          // Export final frame PNG
+          const afterPng = await exportFramePng(frame);
+
+          // Export node PNGs in parallel, capped at 20 to avoid timeout
+          const nodePngs: Record<string, string> = {};
+          const nodeTypes: Record<string, string> = {};
+          const exportableDiffs = diffs
+            .filter(d => d.type !== 'REMOVED')
+            .slice(0, 20);
+
+          await Promise.all(exportableDiffs.map(async (diff) => {
+            const node = figma.getNodeById(diff.nodeId);
+            if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
+              nodeTypes[diff.nodeId] = node.type;
+              const png = await exportNodePng(node as SceneNode);
+              if (png) nodePngs[diff.nodeId] = png;
+            }
+          }));
+
+          reportFrames.push({
+            group: {
+              frameId: frame.id,
+              frameName: frame.name,
+              diffs,
+              savedAt: entry.savedAt,
+            },
+            beforePng: baselinePngs.get(frame.id) ?? null,
+            afterPng,
+            nodePngs,
+            nodeTypes,
+          });
+        }
+
+        if (!anyHadHistory) {
+          send({ type: 'NO_PREVIOUS_SNAPSHOT' });
+          break;
+        }
+
+        const designerName = figma.currentUser !== null ? figma.currentUser.name : 'Designer';
+        const html = generateHTMLReport({
+          designerName,
+          sessionStart: sessionStart || Date.now(),
+          reportAt: Date.now(),
+          frames: reportFrames,
         });
+        const fileName = buildReportFileName(reportFrames.map(f => ({ frameName: f.group.frameName })));
+        send({ type: 'REPORT_READY', html, fileName });
+      } catch (err) {
+        send({ type: 'ERROR', message: 'Erro ao gerar relatório: ' + String(err) });
       }
-
-      if (!anyHadHistory) {
-        send({ type: 'NO_PREVIOUS_SNAPSHOT' });
-        break;
-      }
-
-      const designerName = figma.currentUser?.name ?? 'Designer';
-      const html = generateHTMLReport({
-        designerName,
-        sessionStart: sessionStart || Date.now(),
-        reportAt: Date.now(),
-        frames: reportFrames,
-      });
-      const fileName = buildReportFileName(reportFrames.map(f => ({ frameName: f.group.frameName })));
-      send({ type: 'REPORT_READY', html, fileName });
       break;
     }
 
