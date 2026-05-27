@@ -1,14 +1,18 @@
+import { useState, useEffect, useRef } from 'react';
 import type { DiffType, FrameReview, ReviewItem, ReviewSummary, Severity } from '../../shared/types';
 
 interface Props {
   allReviews: ReviewSummary[];
   activeReview: FrameReview | null;
+  canPublish: boolean;
+  publishDisabledReason: string | null;
   onPublish: () => void;
   onOpenDetail: (frameId: string) => void;
   onCloseDetail: () => void;
   onCheck: (reviewId: string, frameId: string, nodeId: string, diffType: string) => void;
   onUncheck: (reviewId: string, frameId: string, nodeId: string, diffType: string) => void;
   onNavigate: (frameId: string) => void;
+  onRepublish: (frameId: string) => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -60,6 +64,10 @@ function timeAgo(ts: number): string {
   return `há ${days}d`;
 }
 
+function formatDate(ts: number): string {
+  return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'visível' : 'oculto';
@@ -71,12 +79,15 @@ function formatValue(value: unknown): string {
 export function ReviewPanel({
   allReviews,
   activeReview,
+  canPublish,
+  publishDisabledReason,
   onPublish,
   onOpenDetail,
   onCloseDetail,
   onCheck,
   onUncheck,
   onNavigate,
+  onRepublish,
 }: Props) {
   if (activeReview !== null) {
     return (
@@ -86,6 +97,7 @@ export function ReviewPanel({
         onCheck={onCheck}
         onUncheck={onUncheck}
         onNavigate={onNavigate}
+        onRepublish={onRepublish}
       />
     );
   }
@@ -93,6 +105,8 @@ export function ReviewPanel({
   return (
     <ListView
       reviews={allReviews}
+      canPublish={canPublish}
+      publishDisabledReason={publishDisabledReason}
       onPublish={onPublish}
       onOpenDetail={onOpenDetail}
     />
@@ -103,16 +117,25 @@ export function ReviewPanel({
 
 interface ListViewProps {
   reviews: ReviewSummary[];
+  canPublish: boolean;
+  publishDisabledReason: string | null;
   onPublish: () => void;
   onOpenDetail: (frameId: string) => void;
 }
 
-function ListView({ reviews, onPublish, onOpenDetail }: ListViewProps) {
+function ListView({ reviews, canPublish, publishDisabledReason, onPublish, onOpenDetail }: ListViewProps) {
   return (
     <div style={s.panel}>
       <div style={s.listHeader}>
         <span style={s.listTitle}>Reviews</span>
-        <button style={s.publishBtn} onClick={onPublish}>+ Publicar mudanças</button>
+        <button
+          style={{ ...s.publishBtn, ...(!canPublish ? s.publishBtnDisabled : {}) }}
+          onClick={onPublish}
+          disabled={!canPublish}
+          title={publishDisabledReason ?? undefined}
+        >
+          + Publicar mudanças
+        </button>
       </div>
 
       {reviews.length === 0 ? (
@@ -126,8 +149,13 @@ function ListView({ reviews, onPublish, onOpenDetail }: ListViewProps) {
         <div style={s.list}>
           {reviews.map((r) => {
             const sc = STATUS_COLORS[r.status] ?? STATUS_COLORS.pending;
+            const isDone = r.status === 'done';
             return (
-              <button key={r.reviewId} style={s.reviewCard} onClick={() => onOpenDetail(r.frameId)}>
+              <button
+                key={r.reviewId}
+                style={{ ...s.reviewCard, ...(isDone ? s.reviewCardDone : {}) }}
+                onClick={() => onOpenDetail(r.frameId)}
+              >
                 <div style={s.cardTop}>
                   <span style={s.cardName}>{r.frameName}</span>
                   <span style={{ ...s.statusBadge, background: sc.bg, color: sc.text }}>
@@ -135,14 +163,16 @@ function ListView({ reviews, onPublish, onOpenDetail }: ListViewProps) {
                   </span>
                 </div>
                 <div style={s.cardMeta}>
-                  {r.pendingItems > 0 && (
+                  {!isDone && r.pendingItems > 0 && (
                     <span style={s.pendingDot}>{r.pendingItems} pendente{r.pendingItems > 1 ? 's' : ''}</span>
                   )}
-                  {r.pendingItems === 0 && r.status === 'done' && (
-                    <span style={s.allDone}>Tudo revisado</span>
+                  {isDone && <span style={s.allDone}>Revisado em {formatDate(r.publishedAt)}</span>}
+                  {!isDone && (
+                    <>
+                      <span style={s.metaSep}>·</span>
+                      <span>{timeAgo(r.publishedAt)}</span>
+                    </>
                   )}
-                  <span style={s.metaSep}>·</span>
-                  <span>{timeAgo(r.publishedAt)}</span>
                   <span style={s.metaSep}>·</span>
                   <span>por {r.publishedBy}</span>
                 </div>
@@ -163,9 +193,26 @@ interface DetailViewProps {
   onCheck: (reviewId: string, frameId: string, nodeId: string, diffType: string) => void;
   onUncheck: (reviewId: string, frameId: string, nodeId: string, diffType: string) => void;
   onNavigate: (frameId: string) => void;
+  onRepublish: (frameId: string) => void;
 }
 
-function DetailView({ review, onBack, onCheck, onUncheck, onNavigate }: DetailViewProps) {
+function DetailView({ review, onBack, onCheck, onUncheck, onNavigate, onRepublish }: DetailViewProps) {
+  const [showCelebration, setShowCelebration] = useState(false);
+  const prevStatusRef = useRef(review.status);
+
+  useEffect(() => {
+    if (review.status === 'done' && prevStatusRef.current !== 'done') {
+      setShowCelebration(true);
+      const timer = setTimeout(() => {
+        setShowCelebration(false);
+        onBack();
+      }, 2000);
+      prevStatusRef.current = review.status;
+      return () => clearTimeout(timer);
+    }
+    prevStatusRef.current = review.status;
+  }, [review.status, onBack]);
+
   const checkedCount = review.items.filter(i => i.checkedAt !== null).length;
   const totalCount = review.items.length;
   const pct = totalCount === 0 ? 0 : Math.round((checkedCount / totalCount) * 100);
@@ -174,6 +221,18 @@ function DetailView({ review, onBack, onCheck, onUncheck, onNavigate }: DetailVi
   const grouped: Record<Severity, ReviewItem[]> = { high: [], medium: [], low: [] };
   for (const item of review.items) {
     grouped[item.diffResult.severity].push(item);
+  }
+
+  if (showCelebration) {
+    return (
+      <div style={s.celebrationWrap}>
+        <div style={s.celebrationBox}>
+          <div style={s.celebrationIcon}>✓</div>
+          <p style={s.celebrationText}>Revisão completa!</p>
+          <p style={s.celebrationSub}>Voltando para a lista…</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -205,6 +264,14 @@ function DetailView({ review, onBack, onCheck, onUncheck, onNavigate }: DetailVi
         </div>
         <span style={s.progressLabel}>{checkedCount}/{totalCount} itens revisados</span>
       </div>
+
+      {review.status === 'done' && (
+        <div style={s.republishBar}>
+          <button style={s.republishBtn} onClick={() => onRepublish(review.frameId)}>
+            Publicar nova versão
+          </button>
+        </div>
+      )}
 
       <div style={s.itemsContainer}>
         {SEVERITY_ORDER.map((sev) => {
@@ -260,7 +327,7 @@ function ReviewItemRow({ item, reviewId, frameId, onCheck, onUncheck }: RowProps
 
   return (
     <div style={{ ...s.itemRow, ...(isChecked ? s.itemRowChecked : {}) }}>
-      <button style={s.checkbox} onClick={toggle} aria-pressed={isChecked}>
+      <button style={{ ...s.checkbox, ...(isChecked ? s.checkboxChecked : {}) }} onClick={toggle} aria-pressed={isChecked}>
         {isChecked && <span style={s.checkmark}>✓</span>}
       </button>
       <div style={s.itemContent}>
@@ -326,6 +393,10 @@ const s = {
     color: '#fff',
     cursor: 'pointer',
   },
+  publishBtnDisabled: {
+    background: '#ccc',
+    cursor: 'not-allowed',
+  },
   list: {
     display: 'flex',
     flexDirection: 'column',
@@ -345,6 +416,9 @@ const s = {
     cursor: 'pointer',
     textAlign: 'left',
     marginTop: 6,
+  },
+  reviewCardDone: {
+    opacity: 0.6,
   },
   cardTop: {
     display: 'flex',
@@ -409,6 +483,43 @@ const s = {
     lineHeight: 1.6,
     margin: 0,
     maxWidth: 260,
+  },
+  celebrationWrap: {
+    display: 'flex',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#f0fdf4',
+  },
+  celebrationBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+    padding: '32px 24px',
+  },
+  celebrationIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: '50%',
+    background: '#22c55e',
+    color: '#fff',
+    fontSize: 24,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+  },
+  celebrationText: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#15803d',
+    margin: 0,
+  },
+  celebrationSub: {
+    fontSize: 11,
+    color: '#86efac',
+    margin: 0,
   },
   detailHeaderBar: {
     padding: '8px 12px 4px',
@@ -491,6 +602,22 @@ const s = {
     flexShrink: 0,
     whiteSpace: 'nowrap' as const,
   },
+  republishBar: {
+    padding: '8px 12px',
+    borderBottom: '1px solid #f0f0f0',
+    flexShrink: 0,
+  },
+  republishBtn: {
+    background: 'none',
+    border: '1px solid #18a0fb',
+    borderRadius: 5,
+    padding: '5px 12px',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#18a0fb',
+    cursor: 'pointer',
+    width: '100%',
+  },
   itemsContainer: {
     flex: 1,
     overflowY: 'auto',
@@ -534,6 +661,9 @@ const s = {
     justifyContent: 'center',
     padding: 0,
     marginTop: 1,
+  },
+  checkboxChecked: {
+    border: '1.5px solid #2e7d32',
   },
   checkmark: {
     fontSize: 10,

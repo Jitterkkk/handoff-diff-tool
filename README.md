@@ -96,6 +96,14 @@ No modo single-frame, o seletor de versão permite escolher qual das últimas 5 
 
 Por padrão, mudanças de posição (x/y) são ignoradas para reduzir ruído. Ligue o toggle **Incluir mudanças de posição** para incluí-las como mudanças de baixa prioridade. A preferência é salva por plugin.
 
+### Design Review Flow
+
+1. Com um frame selecionado, vá na aba **Reviews** e clique em **Publicar mudanças**
+2. O plugin registra todos os diffs detectados como itens de review pendentes
+3. Um badge colorido aparece no canto do frame no canvas (vermelho = pendente, amarelo = em andamento, verde = concluído)
+4. O dev abre o plugin, vai em Reviews e marca cada item como revisado — o progresso é salvo no `clientStorage` do arquivo
+5. Quando o último item é marcado, o status muda para "Concluído" e o badge fica verde
+
 ---
 
 ## Estrutura de pastas
@@ -121,18 +129,23 @@ handoff/
     │   ├── snapshot.ts    # takeSnapshot(): serializa recursivamente um frame em NodeSnapshot
     │   ├── diff.ts        # diffSnapshots(): compara dois snapshots e retorna lista de DiffResult
     │   ├── diff.test.ts   # Testes unitários do diffSnapshots (Vitest)
-    │   ├── storage.ts     # Histórico de até 5 snapshots por frame com compressão LZString; settings
+    │   ├── storage.ts     # Histórico de até 5 snapshots por frame com compressão LZString; settings; review storage
+    │   ├── reviewUtils.ts # Funções puras do review flow: computePendingCount, computeReviewStatus, applyItemCheck
+    │   ├── badge.ts       # upsertBadge / removeBadge / refreshBadge: badge visual no canvas do Figma
+    │   ├── badge.test.ts  # Testes de BADGE_COLORS e computePendingCount
+    │   ├── review.test.ts # Testes de computeReviewStatus e applyItemCheck
     │   ├── export.ts      # exportDiffAsJSON(): serializa diffs para JSON com sumário de severidade
     │   └── highlight.ts   # createHighlight() / clearHighlights(): retângulo temporário sobre nodes alterados
     │
     └── ui/                # Código da interface — roda em iframe com acesso ao DOM
         ├── main.tsx       # Entry point React: monta o root no #root
-        ├── App.tsx        # Componente raiz: estado global, reducer, comunicação com o plugin via postMessage
+        ├── App.tsx        # Componente raiz: estado global, reducer, abas Diff/Reviews, comunicação via postMessage
         └── components/
             ├── FrameSelector.tsx  # Header com nome(s) do(s) frame(s) e botões de ação
             ├── VersionSelector.tsx # Seletor de versão histórica por timestamp (modo single-frame)
             ├── DiffList.tsx       # Lista de mudanças agrupadas por severidade (alta / média / baixa)
-            └── DiffItem.tsx       # Card de mudança com tipo, valores antes/depois e click-to-zoom
+            ├── DiffItem.tsx       # Card de mudança com tipo, valores antes/depois e click-to-zoom
+            └── ReviewPanel.tsx    # Painel de reviews: lista, detalhe com progresso e checkboxes por severidade
 ```
 
 ### Separação sandbox × UI
@@ -161,6 +174,12 @@ A comunicação é unidirecional por mensagens tipadas em `src/shared/types.ts` 
 ---
 
 ## Roadmap
+
+### Implementado em v0.2.0
+
+- [x] **Design Review Flow** — designer publica mudanças, dev revisa item a item com checkboxes por severidade
+- [x] **Badges visuais nos frames** — círculo colorido no canvas indica status do review em tempo real
+- [x] **Notificação automática** — banner na UI ao selecionar frame com review pendente
 
 ### Em breve
 

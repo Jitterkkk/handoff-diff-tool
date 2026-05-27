@@ -303,6 +303,12 @@ export function App() {
     post({ type: 'PUBLISH_REVIEW', description: '' });
   }, []);
 
+  const handleRepublish = useCallback((frameId: string) => {
+    dispatch({ type: 'CLOSE_REVIEW' });
+    dispatch({ type: 'SET_TAB', tab: 'diff' });
+    post({ type: 'NAVIGATE_TO_FRAME', frameId });
+  }, []);
+
   const handleOpenReviewDetail = useCallback((frameId: string) => {
     post({ type: 'LOAD_REVIEW_DETAIL', frameId });
   }, []);
@@ -321,6 +327,14 @@ export function App() {
 
   const noFrames = state.frames.length === 0;
   const showGuide = !noFrames && !hasAnySnapshot && state.frameDiffs === null && !state.error;
+
+  const publishDisabledReason: string | null =
+    state.frames.length === 0 ? 'Selecione um frame no canvas' :
+    state.frames.length > 1 ? 'Selecione apenas um frame para publicar' :
+    !hasAnySnapshot ? 'Aguardando o baseline ser capturado' :
+    state.isLoading === 'baseline' ? 'Capturando baseline...' :
+    null;
+  const canPublish = publishDisabledReason === null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -455,12 +469,15 @@ export function App() {
         <ReviewPanel
           allReviews={state.allReviews}
           activeReview={state.activeReview}
+          canPublish={canPublish}
+          publishDisabledReason={publishDisabledReason}
           onPublish={handlePublish}
           onOpenDetail={handleOpenReviewDetail}
           onCloseDetail={() => dispatch({ type: 'CLOSE_REVIEW' })}
           onCheck={handleCheckItem}
           onUncheck={handleUncheckItem}
           onNavigate={handleNavigateToFrame}
+          onRepublish={handleRepublish}
         />
       )}
 

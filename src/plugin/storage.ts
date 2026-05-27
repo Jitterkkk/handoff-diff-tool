@@ -2,6 +2,7 @@
 
 import LZString from 'lz-string';
 import type { NodeSnapshot, SnapshotHistory, SnapshotEntryMeta, FrameReview, ReviewSummary } from '../shared/types';
+import { computeReviewStatus } from './reviewUtils';
 
 const HISTORY_PREFIX = 'handoff:history:';
 const MAX_ENTRIES = 5;
@@ -132,14 +133,7 @@ export async function updateReviewItem(
     return item;
   });
 
-  const checkedCount = review.items.filter(i => i.checkedAt !== null).length;
-  if (checkedCount === 0) {
-    review.status = 'pending';
-  } else if (checkedCount === review.items.length) {
-    review.status = 'done';
-  } else {
-    review.status = 'in_progress';
-  }
+  review.status = computeReviewStatus(review.items);
 
   await saveReview(review);
   return review;

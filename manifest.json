@@ -5,6 +5,7 @@
   "main": "dist/code.js",
   "ui": "dist/index.html",
   "editorType": ["figma"],
+  "description": "Detecta automaticamente o que mudou entre versões de um frame e cria um fluxo de review para o time de dev — sem reuniões, sem perguntas.",
   "permissions": ["currentuser"],
   "networkAccess": {
     "allowedDomains": ["none"]

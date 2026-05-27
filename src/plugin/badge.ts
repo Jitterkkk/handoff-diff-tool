@@ -1,14 +1,9 @@
 /// <reference types="@figma/plugin-typings" />
 
 import { loadReview } from './storage';
+import { BADGE_COLORS, computePendingCount } from './reviewUtils';
 
 const BADGE_PREFIX = 'handoff:badge:';
-
-const BADGE_COLORS: Record<'pending' | 'in_progress' | 'done', { r: number; g: number; b: number }> = {
-  pending:     { r: 0.937, g: 0.267, b: 0.267 },
-  in_progress: { r: 0.960, g: 0.620, b: 0.043 },
-  done:        { r: 0.133, g: 0.694, b: 0.298 },
-};
 
 interface ReviewBadgeData {
   reviewId: string;
@@ -66,7 +61,7 @@ export async function refreshBadge(frameId: string): Promise<void> {
       return;
     }
 
-    const pendingItems = review.items.filter(i => i.checkedAt === null).length;
+    const pendingItems = computePendingCount(review.items);
     await upsertBadge(frame, {
       reviewId: review.reviewId,
       status: review.status,
