@@ -2,13 +2,14 @@
 
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
-import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings } from './storage';
+import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, loadReview, loadAllReviews, updateReviewItem } from './storage';
 import { exportDiffAsJSON, buildExportFileName } from './export';
 import { createHighlight, clearHighlights } from './highlight';
 import { generateHTMLReport, buildReportFileName } from './reportGenerator';
 import type {
   FrameDiffGroup,
   FrameMeta,
+  FrameReview,
   PluginToUIMessage,
   UIToPluginMessage,
 } from '../shared/types';
@@ -231,6 +232,90 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
       } catch (err) {
         send({ type: 'ERROR', message: 'Erro ao gerar relatório: ' + String(err) });
       }
+      break;
+    }
+
+    case 'PUBLISH_REVIEW': {
+      try {
+        const frames = getSelectedFrames();
+        if (frames.length !== 1) {
+          send({ type: 'ERROR', message: 'Selecione exatamente um frame para publicar o review.' });
+          break;
+        }
+        const frame = frames[0];
+        const history = await loadHistory(frame.id);
+        if (!history || history.entries.length === 0) {
+          send({ type: 'ERROR', message: 'Nenhum snapshot salvo para este frame. Aguarde o baseline ser capturado.' });
+          break;
+        }
+        const entry = history.entries[history.entries.length - 1];
+        const current = takeSnapshot(frame);
+        const diffs = diffSnapshots(entry.snapshot, current, { includePosition: false });
+
+        const review: FrameReview = {
+          reviewId: Date.now().toString(36),
+          frameId: frame.id,
+          frameName: frame.name,
+          publishedAt: Date.now(),
+          publishedBy: figma.currentUser !== null ? figma.currentUser.name : 'Designer',
+          description: msg.description,
+          items: diffs.map(d => ({ diffResult: d, checkedAt: null, checkedBy: null })),
+          status: 'pending',
+        };
+
+        await saveReview(review);
+        const metas = await Promise.all(frames.map(buildFrameMeta));
+        send({ type: 'REVIEW_PUBLISHED', review, frames: metas });
+      } catch (err) {
+        send({ type: 'ERROR', message: 'Erro ao publicar review: ' + String(err) });
+      }
+      break;
+    }
+
+    case 'GET_ALL_REVIEWS': {
+      const reviews = await loadAllReviews();
+      send({ type: 'ALL_REVIEWS', reviews });
+      break;
+    }
+
+    case 'CHECK_REVIEW_ITEM': {
+      const checkedBy = figma.currentUser !== null ? figma.currentUser.name : 'Dev';
+      const review = await updateReviewItem(msg.frameId, msg.nodeId, msg.diffType, true, checkedBy);
+      if (!review) {
+        send({ type: 'ERROR', message: 'Review não encontrado.' });
+        break;
+      }
+      if (review.status === 'done') clearHighlights();
+      send({ type: 'REVIEW_UPDATED', review });
+      break;
+    }
+
+    case 'UNCHECK_REVIEW_ITEM': {
+      const checkedBy = figma.currentUser !== null ? figma.currentUser.name : 'Dev';
+      const review = await updateReviewItem(msg.frameId, msg.nodeId, msg.diffType, false, checkedBy);
+      if (!review) {
+        send({ type: 'ERROR', message: 'Review não encontrado.' });
+        break;
+      }
+      send({ type: 'REVIEW_UPDATED', review });
+      break;
+    }
+
+    case 'NAVIGATE_TO_FRAME': {
+      const node = figma.getNodeById(msg.frameId);
+      if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
+        figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
+      }
+      break;
+    }
+
+    case 'LOAD_REVIEW_DETAIL': {
+      const review = await loadReview(msg.frameId);
+      if (!review) {
+        send({ type: 'ERROR', message: 'Review não encontrado.' });
+        break;
+      }
+      send({ type: 'REVIEW_DETAIL', review });
       break;
     }
 

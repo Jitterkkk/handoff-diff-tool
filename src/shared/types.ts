@@ -156,7 +156,8 @@ export type UIToPluginMessage =
   | { type: 'GET_ALL_REVIEWS' }
   | { type: 'CHECK_REVIEW_ITEM'; reviewId: string; frameId: string; nodeId: string; diffType: string }
   | { type: 'UNCHECK_REVIEW_ITEM'; reviewId: string; frameId: string; nodeId: string; diffType: string }
-  | { type: 'NAVIGATE_TO_FRAME'; frameId: string };
+  | { type: 'NAVIGATE_TO_FRAME'; frameId: string }
+  | { type: 'LOAD_REVIEW_DETAIL'; frameId: string };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -171,4 +172,5 @@ export type PluginToUIMessage =
   | { type: 'REVIEW_PUBLISHED'; review: FrameReview; frames: FrameMeta[] }
   | { type: 'ALL_REVIEWS'; reviews: ReviewSummary[] }
   | { type: 'REVIEW_UPDATED'; review: FrameReview }
+  | { type: 'REVIEW_DETAIL'; review: FrameReview }
   | { type: 'ERROR'; message: string };

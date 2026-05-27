@@ -2,13 +2,16 @@ import { useEffect, useReducer, useCallback } from 'react';
 import type {
   FrameDiffGroup,
   FrameMeta,
+  FrameReview,
   PluginToUIMessage,
+  ReviewSummary,
   SnapshotEntryMeta,
   UIToPluginMessage,
 } from '../shared/types';
 import { FrameSelector } from './components/FrameSelector';
 import { VersionSelector } from './components/VersionSelector';
 import { DiffList } from './components/DiffList';
+import { ReviewPanel } from './components/ReviewPanel';
 
 interface AppState {
   frames: FrameMeta[];
@@ -18,6 +21,9 @@ interface AppState {
   isLoading: 'baseline' | 'report' | 'diff' | null;
   error: string | null;
   includePosition: boolean;
+  activeTab: 'diff' | 'reviews';
+  allReviews: ReviewSummary[];
+  activeReview: FrameReview | null;
 }
 
 type Action =
@@ -31,7 +37,13 @@ type Action =
   | { type: 'SET_INCLUDE_POSITION'; value: boolean }
   | { type: 'SETTINGS_LOADED'; includePosition: boolean }
   | { type: 'REPORT_DONE' }
-  | { type: 'ERROR'; message: string };
+  | { type: 'ERROR'; message: string }
+  | { type: 'SET_TAB'; tab: 'diff' | 'reviews' }
+  | { type: 'ALL_REVIEWS_LOADED'; reviews: ReviewSummary[] }
+  | { type: 'REVIEW_PUBLISHED'; review: FrameReview; frames: FrameMeta[] }
+  | { type: 'REVIEW_UPDATED'; review: FrameReview }
+  | { type: 'OPEN_REVIEW'; review: FrameReview }
+  | { type: 'CLOSE_REVIEW' };
 
 const initial: AppState = {
   frames: [],
@@ -41,10 +53,26 @@ const initial: AppState = {
   isLoading: null,
   error: null,
   includePosition: false,
+  activeTab: 'diff',
+  allReviews: [],
+  activeReview: null,
 };
 
 function mostRecentIndex(entries: SnapshotEntryMeta[]): number {
   return Math.max(0, entries.length - 1);
+}
+
+function toReviewSummary(r: FrameReview): ReviewSummary {
+  return {
+    frameId: r.frameId,
+    frameName: r.frameName,
+    reviewId: r.reviewId,
+    publishedAt: r.publishedAt,
+    publishedBy: r.publishedBy,
+    totalItems: r.items.length,
+    pendingItems: r.items.filter(i => i.checkedAt === null).length,
+    status: r.status,
+  };
 }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -67,7 +95,12 @@ function reducer(state: AppState, action: Action): AppState {
       };
     }
     case 'NO_FRAME':
-      return { ...initial, includePosition: state.includePosition };
+      return {
+        ...initial,
+        includePosition: state.includePosition,
+        activeTab: state.activeTab,
+        allReviews: state.allReviews,
+      };
     case 'START_BASELINE':
       return { ...state, isLoading: 'baseline', error: null };
     case 'START_REPORT':
@@ -86,6 +119,40 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, includePosition: action.includePosition };
     case 'ERROR':
       return { ...state, isLoading: null, error: action.message };
+    case 'SET_TAB':
+      return { ...state, activeTab: action.tab, error: null };
+    case 'ALL_REVIEWS_LOADED':
+      return { ...state, allReviews: action.reviews };
+    case 'REVIEW_PUBLISHED': {
+      const summary = toReviewSummary(action.review);
+      const filtered = state.allReviews.filter(r => r.frameId !== action.review.frameId);
+      return {
+        ...state,
+        frames: action.frames,
+        isLoading: null,
+        activeTab: 'reviews',
+        activeReview: action.review,
+        allReviews: [summary, ...filtered],
+        error: null,
+      };
+    }
+    case 'REVIEW_UPDATED': {
+      const summary = toReviewSummary(action.review);
+      return {
+        ...state,
+        activeReview:
+          state.activeReview !== null && state.activeReview.reviewId === action.review.reviewId
+            ? action.review
+            : state.activeReview,
+        allReviews: state.allReviews.map(r =>
+          r.reviewId === action.review.reviewId ? summary : r,
+        ),
+      };
+    }
+    case 'OPEN_REVIEW':
+      return { ...state, activeReview: action.review };
+    case 'CLOSE_REVIEW':
+      return { ...state, activeReview: null };
   }
 }
 
@@ -107,11 +174,7 @@ export function App() {
 
       switch (msg.type) {
         case 'CURRENT_FRAMES':
-          dispatch({
-            type: 'FRAMES_UPDATED',
-            frames: msg.frames,
-            sessionStart: msg.sessionStart,
-          });
+          dispatch({ type: 'FRAMES_UPDATED', frames: msg.frames, sessionStart: msg.sessionStart });
           break;
         case 'NO_FRAME_SELECTED':
           dispatch({ type: 'NO_FRAME' });
@@ -149,6 +212,18 @@ export function App() {
         case 'SETTINGS':
           dispatch({ type: 'SETTINGS_LOADED', includePosition: msg.includePosition });
           break;
+        case 'REVIEW_PUBLISHED':
+          dispatch({ type: 'REVIEW_PUBLISHED', review: msg.review, frames: msg.frames });
+          break;
+        case 'ALL_REVIEWS':
+          dispatch({ type: 'ALL_REVIEWS_LOADED', reviews: msg.reviews });
+          break;
+        case 'REVIEW_UPDATED':
+          dispatch({ type: 'REVIEW_UPDATED', review: msg.review });
+          break;
+        case 'REVIEW_DETAIL':
+          dispatch({ type: 'OPEN_REVIEW', review: msg.review });
+          break;
         case 'ERROR':
           dispatch({ type: 'ERROR', message: msg.message });
           break;
@@ -165,26 +240,19 @@ export function App() {
   const hasAnySnapshot = state.frames.some((f) => f.historyEntries.length > 0);
   const singleHistory: SnapshotEntryMeta[] = isSingleFrame ? state.frames[0].historyEntries : [];
   const sessionActive = state.sessionStart !== null && state.sessionStart > 0;
+  const pendingTotal = state.allReviews.reduce((sum, r) => sum + r.pendingItems, 0);
 
   // ── handlers ───────────────────────────────────────────────────────────────
   const handleGenerateReport = useCallback(() => {
     if (state.frames.length === 0) return;
     dispatch({ type: 'START_REPORT' });
-    post({
-      type: 'GENERATE_REPORT',
-      entryIndex: state.selectedEntryIndex,
-      includePosition: state.includePosition,
-    });
+    post({ type: 'GENERATE_REPORT', entryIndex: state.selectedEntryIndex, includePosition: state.includePosition });
   }, [state.frames.length, state.selectedEntryIndex, state.includePosition]);
 
   const handleDiff = useCallback(() => {
     if (state.frames.length === 0) return;
     dispatch({ type: 'START_DIFF' });
-    post({
-      type: 'GET_DIFF',
-      entryIndex: state.selectedEntryIndex,
-      includePosition: state.includePosition,
-    });
+    post({ type: 'GET_DIFF', entryIndex: state.selectedEntryIndex, includePosition: state.includePosition });
   }, [state.frames.length, state.selectedEntryIndex, state.includePosition]);
 
   const handleZoom = useCallback((nodeId: string) => {
@@ -209,97 +277,158 @@ export function App() {
     post({ type: 'SAVE_SETTINGS', includePosition: value });
   }, []);
 
+  const handlePublish = useCallback(() => {
+    post({ type: 'PUBLISH_REVIEW', description: '' });
+  }, []);
+
+  const handleOpenReviewDetail = useCallback((frameId: string) => {
+    post({ type: 'LOAD_REVIEW_DETAIL', frameId });
+  }, []);
+
+  const handleCheckItem = useCallback((reviewId: string, frameId: string, nodeId: string, diffType: string) => {
+    post({ type: 'CHECK_REVIEW_ITEM', reviewId, frameId, nodeId, diffType });
+  }, []);
+
+  const handleUncheckItem = useCallback((reviewId: string, frameId: string, nodeId: string, diffType: string) => {
+    post({ type: 'UNCHECK_REVIEW_ITEM', reviewId, frameId, nodeId, diffType });
+  }, []);
+
+  const handleNavigateToFrame = useCallback((frameId: string) => {
+    post({ type: 'NAVIGATE_TO_FRAME', frameId });
+  }, []);
+
   const noFrames = state.frames.length === 0;
   const showGuide = !noFrames && !hasAnySnapshot && state.frameDiffs === null && !state.error;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <FrameSelector
-        frames={state.frames}
-        hasAnySnapshot={hasAnySnapshot}
-        sessionStart={state.sessionStart}
-        isLoading={state.isLoading}
-        onGenerateReport={handleGenerateReport}
-        onPreviewDiff={handleDiff}
-      />
 
-      <div style={styles.content}>
-        {state.error && <p style={styles.error}>{state.error}</p>}
-
-        {noFrames && <EmptyNoFrame />}
-        {showGuide && !state.isLoading && <EmptyNoSnapshot />}
-        {state.isLoading === 'baseline' && (
-          <div style={styles.loadingMsg}>Capturando baseline do frame…</div>
-        )}
-
-        {isSingleFrame && singleHistory.length > 1 && (
-          <VersionSelector
-            entries={singleHistory}
-            selectedIndex={state.selectedEntryIndex}
-            onChange={handleSelectVersion}
-          />
-        )}
-
-        {isSingleFrame && singleHistory.length > 0 && (
-          <label style={styles.toggleRow}>
-            <div
-              style={{ ...styles.toggle, background: state.includePosition ? '#18a0fb' : '#ddd' }}
-              onClick={() => handleTogglePosition(!state.includePosition)}
-              role="switch"
-              aria-checked={state.includePosition}
-            >
-              <div
-                style={{
-                  ...styles.toggleKnob,
-                  transform: state.includePosition ? 'translateX(14px)' : 'translateX(0)',
-                }}
-              />
-            </div>
-            <span style={styles.toggleLabel}>Incluir mudanças de posição</span>
-          </label>
-        )}
-
-        {sessionActive && hasAnySnapshot && state.frameDiffs === null && !state.isLoading && (
-          <div style={styles.sessionBanner}>
-            <span style={styles.sessionDot} />
-            Sessão ativa desde{' '}
-            {new Date(state.sessionStart!).toLocaleTimeString('pt-BR', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-            {' '}— clique em <strong>Gerar Relatório</strong> quando terminar
-          </div>
-        )}
-
-        {state.frameDiffs !== null && (
-          <>
-            <div style={styles.actionBar}>
-              <button style={styles.clearBtn} onClick={handleClearHighlights}>
-                ✕ Limpar highlights
-              </button>
-              <button style={styles.secondaryBtn} onClick={handleExportJSON}>
-                ↓ JSON
-              </button>
-            </div>
-
-            {state.frameDiffs.map((group) => (
-              <div key={group.frameId}>
-                {state.frameDiffs!.length > 1 && (
-                  <div style={styles.frameHeader}>
-                    <span style={styles.frameHeaderName}>{group.frameName}</span>
-                    <span style={styles.frameHeaderCount}>
-                      {group.diffs.length === 0
-                        ? 'sem mudanças'
-                        : `${group.diffs.length} ${group.diffs.length === 1 ? 'mudança' : 'mudanças'}`}
-                    </span>
-                  </div>
-                )}
-                <DiffList diffs={group.diffs} savedAt={group.savedAt} onZoom={handleZoom} />
-              </div>
-            ))}
-          </>
-        )}
+      {/* ── Tab bar ───────────────────────────────────────────────────────── */}
+      <div style={styles.tabBar}>
+        <button
+          style={{ ...styles.tabBtn, ...(state.activeTab === 'diff' ? styles.tabBtnActive : {}) }}
+          onClick={() => dispatch({ type: 'SET_TAB', tab: 'diff' })}
+        >
+          Diff
+        </button>
+        <button
+          style={{ ...styles.tabBtn, ...(state.activeTab === 'reviews' ? styles.tabBtnActive : {}) }}
+          onClick={() => {
+            dispatch({ type: 'SET_TAB', tab: 'reviews' });
+            post({ type: 'GET_ALL_REVIEWS' });
+          }}
+        >
+          Reviews
+          {pendingTotal > 0 && <span style={styles.tabDot}>{pendingTotal}</span>}
+        </button>
       </div>
+
+      {/* ── Diff tab ──────────────────────────────────────────────────────── */}
+      {state.activeTab === 'diff' && (
+        <>
+          <FrameSelector
+            frames={state.frames}
+            hasAnySnapshot={hasAnySnapshot}
+            sessionStart={state.sessionStart}
+            isLoading={state.isLoading}
+            onGenerateReport={handleGenerateReport}
+            onPreviewDiff={handleDiff}
+          />
+
+          <div style={styles.content}>
+            {state.error && <p style={styles.error}>{state.error}</p>}
+
+            {noFrames && <EmptyNoFrame />}
+            {showGuide && !state.isLoading && <EmptyNoSnapshot />}
+            {state.isLoading === 'baseline' && (
+              <div style={styles.loadingMsg}>Capturando baseline do frame…</div>
+            )}
+
+            {isSingleFrame && singleHistory.length > 1 && (
+              <VersionSelector
+                entries={singleHistory}
+                selectedIndex={state.selectedEntryIndex}
+                onChange={handleSelectVersion}
+              />
+            )}
+
+            {isSingleFrame && singleHistory.length > 0 && (
+              <label style={styles.toggleRow}>
+                <div
+                  style={{ ...styles.toggle, background: state.includePosition ? '#18a0fb' : '#ddd' }}
+                  onClick={() => handleTogglePosition(!state.includePosition)}
+                  role="switch"
+                  aria-checked={state.includePosition}
+                >
+                  <div
+                    style={{
+                      ...styles.toggleKnob,
+                      transform: state.includePosition ? 'translateX(14px)' : 'translateX(0)',
+                    }}
+                  />
+                </div>
+                <span style={styles.toggleLabel}>Incluir mudanças de posição</span>
+              </label>
+            )}
+
+            {sessionActive && hasAnySnapshot && state.frameDiffs === null && !state.isLoading && (
+              <div style={styles.sessionBanner}>
+                <span style={styles.sessionDot} />
+                Sessão ativa desde{' '}
+                {new Date(state.sessionStart!).toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                {' '}— clique em <strong>Gerar Relatório</strong> quando terminar
+              </div>
+            )}
+
+            {state.frameDiffs !== null && (
+              <>
+                <div style={styles.actionBar}>
+                  <button style={styles.clearBtn} onClick={handleClearHighlights}>
+                    ✕ Limpar highlights
+                  </button>
+                  <button style={styles.secondaryBtn} onClick={handleExportJSON}>
+                    ↓ JSON
+                  </button>
+                </div>
+
+                {state.frameDiffs.map((group) => (
+                  <div key={group.frameId}>
+                    {state.frameDiffs!.length > 1 && (
+                      <div style={styles.frameHeader}>
+                        <span style={styles.frameHeaderName}>{group.frameName}</span>
+                        <span style={styles.frameHeaderCount}>
+                          {group.diffs.length === 0
+                            ? 'sem mudanças'
+                            : `${group.diffs.length} ${group.diffs.length === 1 ? 'mudança' : 'mudanças'}`}
+                        </span>
+                      </div>
+                    )}
+                    <DiffList diffs={group.diffs} savedAt={group.savedAt} onZoom={handleZoom} />
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Reviews tab ───────────────────────────────────────────────────── */}
+      {state.activeTab === 'reviews' && (
+        <ReviewPanel
+          allReviews={state.allReviews}
+          activeReview={state.activeReview}
+          onPublish={handlePublish}
+          onOpenDetail={handleOpenReviewDetail}
+          onCloseDetail={() => dispatch({ type: 'CLOSE_REVIEW' })}
+          onCheck={handleCheckItem}
+          onUncheck={handleUncheckItem}
+          onNavigate={handleNavigateToFrame}
+        />
+      )}
+
     </div>
   );
 }
@@ -331,6 +460,44 @@ function EmptyNoSnapshot() {
 }
 
 const styles = {
+  tabBar: {
+    display: 'flex',
+    borderBottom: '1px solid #e5e5e5',
+    background: '#fafafa',
+    flexShrink: 0,
+  },
+  tabBtn: {
+    flex: 1,
+    padding: '8px 0',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    background: 'none',
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#888',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  tabBtnActive: {
+    color: '#18a0fb',
+    borderBottom: '2px solid #18a0fb',
+  },
+  tabDot: {
+    background: '#c62828',
+    color: '#fff',
+    borderRadius: '50%',
+    minWidth: 16,
+    height: 16,
+    fontSize: 9,
+    fontWeight: 700,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 3px',
+  },
   content: {
     flex: 1,
     overflowY: 'auto',
