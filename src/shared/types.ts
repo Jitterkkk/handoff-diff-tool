@@ -112,6 +112,36 @@ export interface FrameDiffGroup {
   savedAt: number;
 }
 
+// ─── Review flow ─────────────────────────────────────────────────────────────
+
+export interface ReviewItem {
+  diffResult: DiffResult;
+  checkedAt: number | null;  // null = pendente, timestamp = revisado
+  checkedBy: string | null;
+}
+
+export interface FrameReview {
+  reviewId: string;           // uuid simples: Date.now().toString(36)
+  frameId: string;
+  frameName: string;
+  publishedAt: number;
+  publishedBy: string;
+  description: string;
+  items: ReviewItem[];
+  status: 'pending' | 'in_progress' | 'done';
+}
+
+export interface ReviewSummary {
+  frameId: string;
+  frameName: string;
+  reviewId: string;
+  publishedAt: number;
+  publishedBy: string;
+  totalItems: number;
+  pendingItems: number;
+  status: 'pending' | 'in_progress' | 'done';
+}
+
 // UI → Plugin
 export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
@@ -121,7 +151,12 @@ export type UIToPluginMessage =
   | { type: 'CLEAR_HIGHLIGHTS' }
   | { type: 'EXPORT_DIFF'; frameDiffs: FrameDiffGroup[] }
   | { type: 'GET_SETTINGS' }
-  | { type: 'SAVE_SETTINGS'; includePosition: boolean };
+  | { type: 'SAVE_SETTINGS'; includePosition: boolean }
+  | { type: 'PUBLISH_REVIEW'; description: string }
+  | { type: 'GET_ALL_REVIEWS' }
+  | { type: 'CHECK_REVIEW_ITEM'; reviewId: string; frameId: string; nodeId: string; diffType: string }
+  | { type: 'UNCHECK_REVIEW_ITEM'; reviewId: string; frameId: string; nodeId: string; diffType: string }
+  | { type: 'NAVIGATE_TO_FRAME'; frameId: string };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -133,4 +168,7 @@ export type PluginToUIMessage =
   | { type: 'DIFF_EXPORT'; json: string; fileName: string }
   | { type: 'REPORT_READY'; html: string; fileName: string }
   | { type: 'SETTINGS'; includePosition: boolean }
+  | { type: 'REVIEW_PUBLISHED'; review: FrameReview; frames: FrameMeta[] }
+  | { type: 'ALL_REVIEWS'; reviews: ReviewSummary[] }
+  | { type: 'REVIEW_UPDATED'; review: FrameReview }
   | { type: 'ERROR'; message: string };

@@ -1,7 +1,7 @@
 /// <reference types="@figma/plugin-typings" />
 
 import LZString from 'lz-string';
-import type { NodeSnapshot, SnapshotHistory, SnapshotEntryMeta } from '../shared/types';
+import type { NodeSnapshot, SnapshotHistory, SnapshotEntryMeta, FrameReview, ReviewSummary } from '../shared/types';
 
 const HISTORY_PREFIX = 'handoff:history:';
 const MAX_ENTRIES = 5;
@@ -68,4 +68,79 @@ export function toMetaEntries(history: SnapshotHistory | null): SnapshotEntryMet
     savedAt: e.savedAt,
     ...(e.label ? { label: e.label } : {}),
   }));
+}
+
+// ─── Review storage ───────────────────────────────────────────────────────────
+
+const REVIEW_PREFIX = 'handoff:review:';
+
+export async function saveReview(review: FrameReview): Promise<void> {
+  await figma.clientStorage.setAsync(`${REVIEW_PREFIX}${review.frameId}`, JSON.stringify(review));
+}
+
+export async function loadReview(frameId: string): Promise<FrameReview | null> {
+  const value: unknown = await figma.clientStorage.getAsync(`${REVIEW_PREFIX}${frameId}`);
+  if (value == null) return null;
+  const json = typeof value === 'string' ? value : JSON.stringify(value);
+  return JSON.parse(json) as FrameReview;
+}
+
+export async function loadAllReviews(): Promise<ReviewSummary[]> {
+  const keys: string[] = await figma.clientStorage.keysAsync();
+  const reviewKeys = keys.filter(k => k.startsWith(REVIEW_PREFIX));
+
+  const reviews = await Promise.all(
+    reviewKeys.map(async (key) => {
+      const frameId = key.slice(REVIEW_PREFIX.length);
+      return loadReview(frameId);
+    }),
+  );
+
+  return reviews
+    .filter((r): r is FrameReview => r !== null)
+    .map((r): ReviewSummary => ({
+      frameId: r.frameId,
+      frameName: r.frameName,
+      reviewId: r.reviewId,
+      publishedAt: r.publishedAt,
+      publishedBy: r.publishedBy,
+      totalItems: r.items.length,
+      pendingItems: r.items.filter(i => i.checkedAt === null).length,
+      status: r.status,
+    }))
+    .sort((a, b) => b.publishedAt - a.publishedAt);
+}
+
+export async function updateReviewItem(
+  frameId: string,
+  nodeId: string,
+  diffType: string,
+  checked: boolean,
+  checkedBy: string,
+): Promise<FrameReview | null> {
+  const review = await loadReview(frameId);
+  if (!review) return null;
+
+  review.items = review.items.map(item => {
+    if (item.diffResult.nodeId === nodeId && item.diffResult.type === diffType) {
+      return {
+        ...item,
+        checkedAt: checked ? Date.now() : null,
+        checkedBy: checked ? checkedBy : null,
+      };
+    }
+    return item;
+  });
+
+  const checkedCount = review.items.filter(i => i.checkedAt !== null).length;
+  if (checkedCount === 0) {
+    review.status = 'pending';
+  } else if (checkedCount === review.items.length) {
+    review.status = 'done';
+  } else {
+    review.status = 'in_progress';
+  }
+
+  await saveReview(review);
+  return review;
 }
