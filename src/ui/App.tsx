@@ -24,6 +24,7 @@ interface AppState {
   activeTab: 'diff' | 'reviews';
   allReviews: ReviewSummary[];
   activeReview: FrameReview | null;
+  reviewNotification: { frameId: string; frameName: string; pendingItems: number } | null;
 }
 
 type Action =
@@ -43,7 +44,9 @@ type Action =
   | { type: 'REVIEW_PUBLISHED'; review: FrameReview; frames: FrameMeta[] }
   | { type: 'REVIEW_UPDATED'; review: FrameReview }
   | { type: 'OPEN_REVIEW'; review: FrameReview }
-  | { type: 'CLOSE_REVIEW' };
+  | { type: 'CLOSE_REVIEW' }
+  | { type: 'REVIEW_NOTIFICATION'; frameId: string; frameName: string; pendingItems: number }
+  | { type: 'DISMISS_NOTIFICATION' };
 
 const initial: AppState = {
   frames: [],
@@ -56,6 +59,7 @@ const initial: AppState = {
   activeTab: 'diff',
   allReviews: [],
   activeReview: null,
+  reviewNotification: null,
 };
 
 function mostRecentIndex(entries: SnapshotEntryMeta[]): number {
@@ -153,6 +157,13 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, activeReview: action.review };
     case 'CLOSE_REVIEW':
       return { ...state, activeReview: null };
+    case 'REVIEW_NOTIFICATION':
+      return {
+        ...state,
+        reviewNotification: { frameId: action.frameId, frameName: action.frameName, pendingItems: action.pendingItems },
+      };
+    case 'DISMISS_NOTIFICATION':
+      return { ...state, reviewNotification: null };
   }
 }
 
@@ -224,6 +235,9 @@ export function App() {
         case 'REVIEW_DETAIL':
           dispatch({ type: 'OPEN_REVIEW', review: msg.review });
           break;
+        case 'REVIEW_NOTIFICATION':
+          dispatch({ type: 'REVIEW_NOTIFICATION', frameId: msg.frameId, frameName: msg.frameName, pendingItems: msg.pendingItems });
+          break;
         case 'ERROR':
           dispatch({ type: 'ERROR', message: msg.message });
           break;
@@ -234,6 +248,14 @@ export function App() {
     return () => window.removeEventListener('message', onMessage);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (state.reviewNotification === null) return;
+    const timer = setTimeout(() => {
+      dispatch({ type: 'DISMISS_NOTIFICATION' });
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [state.reviewNotification]);
 
   // ── derived ────────────────────────────────────────────────────────────────
   const isSingleFrame = state.frames.length === 1;
@@ -336,6 +358,19 @@ export function App() {
           />
 
           <div style={styles.content}>
+            {state.reviewNotification !== null && (
+              <ReviewNotificationBanner
+                notification={state.reviewNotification}
+                onViewReviews={() => {
+                  const notif = state.reviewNotification;
+                  dispatch({ type: 'SET_TAB', tab: 'reviews' });
+                  post({ type: 'GET_ALL_REVIEWS' });
+                  if (notif !== null) handleOpenReviewDetail(notif.frameId);
+                  dispatch({ type: 'DISMISS_NOTIFICATION' });
+                }}
+                onDismiss={() => dispatch({ type: 'DISMISS_NOTIFICATION' })}
+              />
+            )}
             {state.error && <p style={styles.error}>{state.error}</p>}
 
             {noFrames && <EmptyNoFrame />}
@@ -429,6 +464,27 @@ export function App() {
         />
       )}
 
+    </div>
+  );
+}
+
+interface NotifBannerProps {
+  notification: { frameId: string; frameName: string; pendingItems: number };
+  onViewReviews: () => void;
+  onDismiss: () => void;
+}
+
+function ReviewNotificationBanner({ notification, onViewReviews, onDismiss }: NotifBannerProps) {
+  const n = notification.pendingItems;
+  return (
+    <div style={notifStyles.banner}>
+      <span style={notifStyles.text}>
+        <strong>{notification.frameName}</strong> tem {n} mudança{n !== 1 ? 's' : ''} aguardando review
+      </span>
+      <div style={notifStyles.actions}>
+        <button style={notifStyles.viewBtn} onClick={onViewReviews}>Ver reviews</button>
+        <button style={notifStyles.closeBtn} onClick={onDismiss}>✕</button>
+      </div>
     </div>
   );
 }
@@ -612,6 +668,50 @@ const styles = {
     fontSize: 10,
     color: '#aaa',
     flexShrink: 0,
+  },
+} satisfies Record<string, React.CSSProperties>;
+
+const notifStyles = {
+  banner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: 7,
+    padding: '8px 10px',
+    marginBottom: 8,
+  },
+  text: {
+    fontSize: 11,
+    color: '#991b1b',
+    flex: 1,
+    lineHeight: 1.4,
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  viewBtn: {
+    background: 'none',
+    border: '1px solid #fca5a5',
+    borderRadius: 4,
+    padding: '3px 8px',
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#dc2626',
+    cursor: 'pointer',
+  },
+  closeBtn: {
+    background: 'none',
+    border: 'none',
+    padding: '2px 4px',
+    fontSize: 11,
+    color: '#dc2626',
+    cursor: 'pointer',
   },
 } satisfies Record<string, React.CSSProperties>;
 

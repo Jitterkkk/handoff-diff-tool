@@ -173,4 +173,5 @@ export type PluginToUIMessage =
   | { type: 'ALL_REVIEWS'; reviews: ReviewSummary[] }
   | { type: 'REVIEW_UPDATED'; review: FrameReview }
   | { type: 'REVIEW_DETAIL'; review: FrameReview }
+  | { type: 'REVIEW_NOTIFICATION'; frameId: string; frameName: string; pendingItems: number; status: 'pending' | 'in_progress' }
   | { type: 'ERROR'; message: string };

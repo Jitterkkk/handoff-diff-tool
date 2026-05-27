@@ -5,6 +5,7 @@ import { diffSnapshots } from './diff';
 import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, loadReview, loadAllReviews, updateReviewItem } from './storage';
 import { exportDiffAsJSON, buildExportFileName } from './export';
 import { createHighlight, clearHighlights } from './highlight';
+import { refreshBadge } from './badge';
 import { generateHTMLReport, buildReportFileName } from './reportGenerator';
 import type {
   FrameDiffGroup,
@@ -109,6 +110,7 @@ async function notifyCurrentFrames(withBaseline = false): Promise<void> {
   if (withBaseline) await ensureBaselines(frames);
   const metas = await Promise.all(frames.map(buildFrameMeta));
   send({ type: 'CURRENT_FRAMES', frames: metas, sessionStart });
+  void Promise.all(frames.map(f => refreshBadge(f.id)));
 }
 
 // ─── message handler ─────────────────────────────────────────────────────────
@@ -264,6 +266,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         };
 
         await saveReview(review);
+        await refreshBadge(frame.id);
         const metas = await Promise.all(frames.map(buildFrameMeta));
         send({ type: 'REVIEW_PUBLISHED', review, frames: metas });
       } catch (err) {
@@ -286,6 +289,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         break;
       }
       if (review.status === 'done') clearHighlights();
+      await refreshBadge(msg.frameId);
       send({ type: 'REVIEW_UPDATED', review });
       break;
     }
@@ -297,6 +301,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         send({ type: 'ERROR', message: 'Review não encontrado.' });
         break;
       }
+      await refreshBadge(msg.frameId);
       send({ type: 'REVIEW_UPDATED', review });
       break;
     }
@@ -354,4 +359,22 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
   }
 };
 
-figma.on('selectionchange', () => { void notifyCurrentFrames(true); });
+figma.on('selectionchange', async () => {
+  await notifyCurrentFrames(true);
+  const frames = getSelectedFrames();
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    const review = await loadReview(frame.id);
+    if (review !== null && review.status !== 'done') {
+      const pendingItems = review.items.filter(item => item.checkedAt === null).length;
+      send({
+        type: 'REVIEW_NOTIFICATION',
+        frameId: frame.id,
+        frameName: frame.name,
+        pendingItems,
+        status: review.status as 'pending' | 'in_progress',
+      });
+      break;
+    }
+  }
+});
