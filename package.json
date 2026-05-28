@@ -26,6 +26,9 @@
     "plugin:dev": "npm run dev",
     "api:install": "cd api && npm install",
     "api:dev": "cd api && npm run dev",
+    "web:install": "cd web && npm install",
+    "web:dev": "cd web && npm run dev",
+    "web:build": "cd web && npm run build",
     "test": "vitest",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit"

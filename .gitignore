@@ -8,6 +8,7 @@ api/node_modules/
 api/dist/
 api/.env
 
-# Web (em breve)
+# Web
 web/node_modules/
-web/.env
+web/.env.local
+web/.next/
