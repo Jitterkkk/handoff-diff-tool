@@ -77,7 +77,7 @@ export async function authRoutes(app: FastifyInstance) {
     const params = new URLSearchParams({
       client_id: config.FIGMA_CLIENT_ID,
       redirect_uri: redirectUri,
-      scope: 'files:read',
+      scope: 'current_user:read',
       state,
       response_type: 'code',
     })
