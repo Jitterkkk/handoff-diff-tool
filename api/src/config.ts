@@ -7,9 +7,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1),
   PORT: z.coerce.number().int().positive().default(3001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  FIGMA_CLIENT_ID: z.string().optional(),
-  FIGMA_CLIENT_SECRET: z.string().optional(),
+  FIGMA_CLIENT_ID: z.string().default(''),
+  FIGMA_CLIENT_SECRET: z.string().default(''),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  API_BASE: z.string().url().default('http://localhost:3001'),
 })
 
 function loadConfig() {
@@ -20,8 +21,13 @@ function loadConfig() {
   }
 
   const data = result.data
-  if (data.NODE_ENV === 'production' && data.JWT_SECRET === 'change-me-in-production') {
-    throw new Error('JWT_SECRET must be changed in production')
+
+  if (data.NODE_ENV === 'production') {
+    if (data.JWT_SECRET === 'change-me-in-production') {
+      throw new Error('JWT_SECRET must be changed in production')
+    }
+    if (!data.FIGMA_CLIENT_ID) throw new Error('FIGMA_CLIENT_ID is required in production')
+    if (!data.FIGMA_CLIENT_SECRET) throw new Error('FIGMA_CLIENT_SECRET is required in production')
   }
 
   return data
