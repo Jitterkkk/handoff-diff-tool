@@ -16,6 +16,9 @@
   "keywords": [],
   "author": "Jitterkkk <biazusdev@gmail.com>",
   "license": "ISC",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",
