@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://handoff-api.onrender.com'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://handoff-api.onrender.com'
 
 export default function LoginPage() {
   return (
