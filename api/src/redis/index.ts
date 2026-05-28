@@ -1,15 +1,9 @@
-import Redis from 'ioredis'
+import { Redis } from '@upstash/redis'
 import { config } from '../config.js'
 
-export const redis = new Redis(config.REDIS_URL, {
-  maxRetriesPerRequest: 3,
-  lazyConnect: true,
-})
-
-redis.on('error', (err) => {
-  if (config.NODE_ENV !== 'test') {
-    console.error('[redis] connection error:', err.message)
-  }
+export const redis = new Redis({
+  url: config.UPSTASH_REDIS_REST_URL,
+  token: config.UPSTASH_REDIS_REST_TOKEN,
 })
 
 export async function publishEvent(channel: string, payload: unknown): Promise<void> {

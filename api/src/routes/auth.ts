@@ -71,7 +71,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const state = crypto.randomUUID()
-    await redis.set(`oauth:state:${state}`, '1', 'EX', 600)
+    await redis.set(`oauth:state:${state}`, '1', { ex: 600 })
 
     const params = new URLSearchParams({
       client_id: config.FIGMA_CLIENT_ID,
