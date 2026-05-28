@@ -71,6 +71,23 @@ export function toMetaEntries(history: SnapshotHistory | null): SnapshotEntryMet
   }));
 }
 
+// ─── Auth token storage ───────────────────────────────────────────────────────
+
+const AUTH_TOKEN_KEY = 'handoff:auth:token';
+
+export async function saveAuthToken(token: string): Promise<void> {
+  await figma.clientStorage.setAsync(AUTH_TOKEN_KEY, token);
+}
+
+export async function loadAuthToken(): Promise<string | null> {
+  const value: unknown = await figma.clientStorage.getAsync(AUTH_TOKEN_KEY);
+  return typeof value === 'string' ? value : null;
+}
+
+export async function clearAuthToken(): Promise<void> {
+  await figma.clientStorage.deleteAsync(AUTH_TOKEN_KEY);
+}
+
 // ─── Review storage ───────────────────────────────────────────────────────────
 
 const REVIEW_PREFIX = 'handoff:review:';

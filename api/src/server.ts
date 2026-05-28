@@ -7,6 +7,7 @@ import { config } from './config.js'
 import { healthRoutes } from './routes/health.js'
 import { reviewsRoutes } from './routes/reviews.js'
 import { filesRoutes } from './routes/files.js'
+import { authRoutes } from './routes/auth.js'
 import { ZodError } from 'zod'
 
 declare module '@fastify/jwt' {
@@ -50,6 +51,7 @@ export async function buildApp() {
   })
 
   await app.register(healthRoutes)
+  await app.register(authRoutes)
   await app.register(reviewsRoutes)
   await app.register(filesRoutes)
 

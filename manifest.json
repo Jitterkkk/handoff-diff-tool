@@ -7,6 +7,6 @@
   "editorType": ["figma"],
   "permissions": ["currentuser"],
   "networkAccess": {
-    "allowedDomains": ["none"]
+    "allowedDomains": ["https://handoff-api.onrender.com"]
   }
 }

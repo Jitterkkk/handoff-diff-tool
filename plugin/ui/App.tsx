@@ -25,6 +25,8 @@ interface AppState {
   allReviews: ReviewSummary[];
   activeReview: FrameReview | null;
   reviewNotification: { frameId: string; frameName: string; pendingItems: number } | null;
+  authStatus: 'loading' | 'authenticated' | 'offline';
+  userName: string | null;
 }
 
 type Action =
@@ -46,7 +48,8 @@ type Action =
   | { type: 'OPEN_REVIEW'; review: FrameReview }
   | { type: 'CLOSE_REVIEW' }
   | { type: 'REVIEW_NOTIFICATION'; frameId: string; frameName: string; pendingItems: number }
-  | { type: 'DISMISS_NOTIFICATION' };
+  | { type: 'DISMISS_NOTIFICATION' }
+  | { type: 'AUTH_STATUS'; authenticated: boolean; userName: string | null };
 
 const initial: AppState = {
   frames: [],
@@ -60,6 +63,8 @@ const initial: AppState = {
   allReviews: [],
   activeReview: null,
   reviewNotification: null,
+  authStatus: 'loading',
+  userName: null,
 };
 
 function mostRecentIndex(entries: SnapshotEntryMeta[]): number {
@@ -164,6 +169,12 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case 'DISMISS_NOTIFICATION':
       return { ...state, reviewNotification: null };
+    case 'AUTH_STATUS':
+      return {
+        ...state,
+        authStatus: action.authenticated ? 'authenticated' : 'offline',
+        userName: action.userName,
+      };
   }
 }
 
@@ -237,6 +248,9 @@ export function App() {
           break;
         case 'REVIEW_NOTIFICATION':
           dispatch({ type: 'REVIEW_NOTIFICATION', frameId: msg.frameId, frameName: msg.frameName, pendingItems: msg.pendingItems });
+          break;
+        case 'AUTH_STATUS':
+          dispatch({ type: 'AUTH_STATUS', authenticated: msg.authenticated, userName: msg.userName });
           break;
         case 'ERROR':
           dispatch({ type: 'ERROR', message: msg.message });
@@ -367,6 +381,8 @@ export function App() {
             hasAnySnapshot={hasAnySnapshot}
             sessionStart={state.sessionStart}
             isLoading={state.isLoading}
+            authStatus={state.authStatus}
+            userName={state.userName}
             onGenerateReport={handleGenerateReport}
             onPreviewDiff={handleDiff}
           />

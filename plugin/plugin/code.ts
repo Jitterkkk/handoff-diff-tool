@@ -2,7 +2,8 @@
 
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
-import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, loadReview, loadAllReviews, updateReviewItem } from './storage';
+import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, loadReview, loadAllReviews, updateReviewItem, saveAuthToken, loadAuthToken } from './storage';
+import { apiClient } from './api';
 import { exportDiffAsJSON, buildExportFileName } from './export';
 import { createHighlight, clearHighlights } from './highlight';
 import { refreshBadge } from './badge';
@@ -15,11 +16,47 @@ import type {
   UIToPluginMessage,
 } from '../shared/types';
 
-figma.showUI(__html__, {
-  width: 380,
-  height: 560,
-  title: 'Handoff Diff Tool',
-});
+// ─── Auth state ───────────────────────────────────────────────────────────────
+
+let authToken: string | null = null;
+
+async function authenticateUser(): Promise<string | null> {
+  try {
+    const stored = await loadAuthToken();
+    if (stored) return stored;
+
+    if (figma.currentUser === null) return null;
+
+    const token = await apiClient.authenticate({
+      figmaUserId: figma.currentUser.id ?? figma.currentUser.name,
+      name: figma.currentUser.name,
+      avatarUrl: figma.currentUser.photoUrl ?? undefined,
+    });
+    await saveAuthToken(token);
+    return token;
+  } catch (err) {
+    console.error('[handoff] auth failed:', String(err));
+    return null;
+  }
+}
+
+// ─── Init (async IIFE — top-level await não é suportado no formato IIFE do Rollup) ──
+
+void (async () => {
+  authToken = await authenticateUser();
+
+  figma.showUI(__html__, {
+    width: 380,
+    height: 560,
+    title: 'Handoff Diff Tool',
+  });
+
+  send({
+    type: 'AUTH_STATUS',
+    authenticated: authToken !== null,
+    userName: figma.currentUser !== null ? figma.currentUser.name : null,
+  });
+})();
 
 function send(msg: PluginToUIMessage): void {
   figma.ui.postMessage(msg);
@@ -266,6 +303,28 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         };
 
         await saveReview(review);
+
+        if (authToken !== null) {
+          void (async () => {
+            try {
+              const fileKey = figma.fileKey !== undefined ? figma.fileKey : 'local';
+              const backendReview = await apiClient.publishReview(authToken!, {
+                fileKey,
+                frameName: frame.name,
+                frameId: frame.id,
+                description: msg.description,
+                publishedByUserId: figma.currentUser !== null ? (figma.currentUser.id ?? figma.currentUser.name) : 'unknown',
+                publishedByName: figma.currentUser !== null ? figma.currentUser.name : 'Designer',
+                items: diffs,
+              });
+              review.backendReviewId = backendReview.id;
+              await saveReview(review);
+            } catch (err) {
+              console.error('[handoff] publishReview backend error:', String(err));
+            }
+          })();
+        }
+
         await refreshBadge(frame.id);
         const metas = await Promise.all(frames.map(buildFrameMeta));
         send({ type: 'REVIEW_PUBLISHED', review, frames: metas });
@@ -276,8 +335,20 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
     }
 
     case 'GET_ALL_REVIEWS': {
-      const reviews = await loadAllReviews();
-      send({ type: 'ALL_REVIEWS', reviews });
+      if (authToken !== null) {
+        try {
+          const fileKey = figma.fileKey !== undefined ? figma.fileKey : 'local';
+          const reviews = await apiClient.getReviews(authToken, fileKey);
+          send({ type: 'ALL_REVIEWS', reviews });
+        } catch (err) {
+          console.error('[handoff] getReviews backend error:', String(err));
+          const reviews = await loadAllReviews();
+          send({ type: 'ALL_REVIEWS', reviews });
+        }
+      } else {
+        const reviews = await loadAllReviews();
+        send({ type: 'ALL_REVIEWS', reviews });
+      }
       break;
     }
 

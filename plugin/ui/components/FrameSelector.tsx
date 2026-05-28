@@ -8,6 +8,8 @@ interface Props {
   hasAnySnapshot: boolean;
   sessionStart: number | null;
   isLoading: 'baseline' | 'report' | 'diff' | null;
+  authStatus: 'loading' | 'authenticated' | 'offline';
+  userName: string | null;
   onGenerateReport: () => void;
   onPreviewDiff: () => void;
 }
@@ -17,6 +19,8 @@ export function FrameSelector({
   hasAnySnapshot,
   sessionStart,
   isLoading,
+  authStatus,
+  userName,
   onGenerateReport,
   onPreviewDiff,
 }: Props) {
@@ -61,6 +65,20 @@ export function FrameSelector({
       {isLoading === 'baseline' && (
         <div style={styles.loadingBadge}>Capturando baseline…</div>
       )}
+
+      <div style={styles.authRow}>
+        <span style={{
+          ...styles.authDot,
+          background: authStatus === 'authenticated' ? '#22c55e' : authStatus === 'loading' ? '#eab308' : '#aaa',
+        }} />
+        <span style={styles.authLabel}>
+          {authStatus === 'authenticated'
+            ? 'Sincronizado' + (userName ? ' • ' + userName : '')
+            : authStatus === 'loading'
+            ? 'Conectando...'
+            : 'Modo offline'}
+        </span>
+      </div>
 
       <div style={styles.actions}>
         {/* Preview diff — secondary */}
@@ -171,6 +189,22 @@ const styles = {
     borderRadius: 4,
     padding: '3px 8px',
     alignSelf: 'flex-start',
+  },
+  authRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 5,
+  },
+  authDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  authLabel: {
+    fontSize: 10,
+    color: '#888',
   },
   actions: {
     display: 'flex',

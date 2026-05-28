@@ -129,6 +129,7 @@ export interface FrameReview {
   description: string;
   items: ReviewItem[];
   status: 'pending' | 'in_progress' | 'done';
+  backendReviewId?: string;   // UUID retornado pelo backend ao sincronizar
 }
 
 export interface ReviewSummary {
@@ -161,6 +162,7 @@ export type UIToPluginMessage =
 
 // Plugin → UI
 export type PluginToUIMessage =
+  | { type: 'AUTH_STATUS'; authenticated: boolean; userName: string | null }
   | { type: 'CURRENT_FRAMES'; frames: FrameMeta[]; sessionStart: number }
   | { type: 'NO_FRAME_SELECTED' }
   | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
