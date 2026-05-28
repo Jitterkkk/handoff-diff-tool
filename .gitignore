@@ -2,3 +2,12 @@ node_modules/
 dist/
 .DS_Store
 *.local
+
+# API
+api/node_modules/
+api/dist/
+api/.env
+
+# Web (em breve)
+web/node_modules/
+web/.env

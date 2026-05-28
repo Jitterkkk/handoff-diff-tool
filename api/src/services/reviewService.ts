@@ -1,0 +1,202 @@
+import { sql } from '../db/index.js'
+import { publishEvent } from '../redis/index.js'
+import type { DbUser, DbReview, DbReviewItem, ReviewSummary, ReviewDetail, ReviewStatus } from '../types/index.js'
+import type { PublishReviewBody, DiffResult } from '../schemas/review.js'
+
+async function upsertUser(figmaUserId: string, name: string, email?: string, avatarUrl?: string): Promise<DbUser> {
+  const rows = await sql<DbUser[]>`
+    INSERT INTO users (figma_user_id, name, email, avatar_url)
+    VALUES (${figmaUserId}, ${name}, ${email ?? null}, ${avatarUrl ?? null})
+    ON CONFLICT (figma_user_id) DO UPDATE
+      SET name = EXCLUDED.name,
+          email = COALESCE(EXCLUDED.email, users.email),
+          avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+          updated_at = NOW()
+    RETURNING *
+  `
+  return rows[0]
+}
+
+function computeStatus(items: DbReviewItem[]): ReviewStatus {
+  const total = items.length
+  const checked = items.filter(i => i.checked_at !== null).length
+  if (checked === 0) return 'pending'
+  if (checked === total) return 'done'
+  return 'in_progress'
+}
+
+export async function publishReview(body: PublishReviewBody): Promise<ReviewDetail> {
+  const { fileKey, fileName, frameId, frameName, description, publishedBy, items } = body
+
+  const [fileRow] = await sql`
+    INSERT INTO files (figma_file_key, name)
+    VALUES (${fileKey}, ${fileName})
+    ON CONFLICT (figma_file_key) DO UPDATE
+      SET name = EXCLUDED.name,
+          updated_at = NOW()
+    RETURNING *
+  `
+
+  const user = await upsertUser(
+    publishedBy.figmaUserId,
+    publishedBy.name,
+    publishedBy.email,
+    publishedBy.avatarUrl,
+  )
+
+  const review = await sql.begin(async (tx) => {
+    const [rev] = await tx<DbReview[]>`
+      INSERT INTO reviews (file_id, frame_id, frame_name, published_by, description)
+      VALUES (${fileRow.id}, ${frameId}, ${frameName}, ${user.id}, ${description})
+      RETURNING *
+    `
+
+    if (items.length > 0) {
+      await tx`
+        INSERT INTO review_items ${tx(
+          items.map((item: DiffResult) => ({
+            review_id: rev.id,
+            node_id: item.nodeId,
+            node_name: item.nodeName,
+            diff_type: item.type,
+            severity: item.severity,
+            before_value: item.before !== undefined ? JSON.stringify(item.before) : null,
+            after_value: item.after !== undefined ? JSON.stringify(item.after) : null,
+          }))
+        )}
+      `
+    }
+
+    return rev
+  })
+
+  const reviewItems = await sql<DbReviewItem[]>`
+    SELECT * FROM review_items WHERE review_id = ${review.id} ORDER BY created_at ASC
+  `
+
+  await publishEvent(`reviews:${fileKey}`, {
+    type: 'REVIEW_PUBLISHED',
+    reviewId: review.id,
+    frameId,
+    frameName,
+    status: review.status,
+  }).catch(() => {})
+
+  return {
+    id: review.id,
+    frame_id: review.frame_id,
+    frame_name: review.frame_name,
+    status: review.status,
+    description: review.description,
+    published_at: review.published_at,
+    updated_at: review.updated_at,
+    published_by_name: user.name,
+    total_items: reviewItems.length,
+    checked_items: reviewItems.filter(i => i.checked_at !== null).length,
+    items: reviewItems,
+  }
+}
+
+export async function listReviews(fileKey: string, status?: string): Promise<ReviewSummary[]> {
+  const rows = await sql<ReviewSummary[]>`
+    SELECT
+      r.id,
+      r.frame_id,
+      r.frame_name,
+      r.status,
+      r.description,
+      r.published_at,
+      r.updated_at,
+      u.name AS published_by_name,
+      COUNT(ri.id)::int AS total_items,
+      COUNT(ri.checked_at)::int AS checked_items
+    FROM reviews r
+    JOIN files f ON f.id = r.file_id
+    JOIN users u ON u.id = r.published_by
+    LEFT JOIN review_items ri ON ri.review_id = r.id
+    WHERE f.figma_file_key = ${fileKey}
+      ${status ? sql`AND r.status = ${status}` : sql``}
+    GROUP BY r.id, u.name
+    ORDER BY r.published_at DESC
+  `
+  return rows
+}
+
+export async function getReview(reviewId: string): Promise<ReviewDetail | null> {
+  type ReviewWithUser = DbReview & { published_by_name: string }
+  const [review] = await sql<ReviewWithUser[]>`
+    SELECT r.*, u.name AS published_by_name
+    FROM reviews r
+    JOIN users u ON u.id = r.published_by
+    WHERE r.id = ${reviewId}
+  `
+  if (!review) return null
+
+  const items = await sql<DbReviewItem[]>`
+    SELECT * FROM review_items WHERE review_id = ${reviewId} ORDER BY created_at ASC
+  `
+
+  return {
+    id: review.id,
+    frame_id: review.frame_id,
+    frame_name: review.frame_name,
+    status: review.status as ReviewStatus,
+    description: review.description,
+    published_at: review.published_at,
+    updated_at: review.updated_at,
+    published_by_name: review.published_by_name,
+    total_items: items.length,
+    checked_items: items.filter(i => i.checked_at !== null).length,
+    items,
+  }
+}
+
+export async function patchReviewItem(
+  reviewId: string,
+  itemId: string,
+  checked: boolean,
+  checkedBy?: { figmaUserId: string; name: string },
+): Promise<ReviewDetail | null> {
+  let checkerId: string | null = null
+  if (checkedBy) {
+    const user = await upsertUser(checkedBy.figmaUserId, checkedBy.name)
+    checkerId = user.id
+  }
+
+  await sql`
+    UPDATE review_items
+    SET
+      checked_at = ${checked ? sql`NOW()` : sql`NULL`},
+      checked_by = ${checked && checkerId ? checkerId : sql`NULL`}
+    WHERE id = ${itemId} AND review_id = ${reviewId}
+  `
+
+  const allItems = await sql<DbReviewItem[]>`
+    SELECT * FROM review_items WHERE review_id = ${reviewId}
+  `
+
+  const newStatus = computeStatus(allItems)
+
+  const [fileKey] = await sql<{ figma_file_key: string }[]>`
+    SELECT f.figma_file_key
+    FROM reviews r
+    JOIN files f ON f.id = r.file_id
+    WHERE r.id = ${reviewId}
+  `
+
+  await sql`
+    UPDATE reviews SET status = ${newStatus}, updated_at = NOW() WHERE id = ${reviewId}
+  `
+
+  if (fileKey) {
+    await publishEvent(`reviews:${fileKey.figma_file_key}`, {
+      type: 'REVIEW_ITEM_UPDATED',
+      reviewId,
+      itemId,
+      checked,
+      newStatus,
+    }).catch(() => {})
+  }
+
+  return getReview(reviewId)
+}

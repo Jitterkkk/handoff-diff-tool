@@ -1,0 +1,38 @@
+{
+  "name": "handoff-api",
+  "version": "1.0.0",
+  "description": "Backend API for Handoff Diff Tool",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "tsx src/db/migrate.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "Jitterkkk <biazusdev@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/jwt": "^10.1.0",
+    "fastify": "^5.8.5",
+    "fastify-plugin": "^5.1.0",
+    "ioredis": "^5.11.0",
+    "postgres": "^3.4.9",
+    "uuid": "^14.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/uuid": "^10.0.0",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

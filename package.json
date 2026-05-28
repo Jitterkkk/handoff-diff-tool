@@ -23,6 +23,9 @@
     "build:plugin": "vite build --mode plugin",
     "build": "npm run build:ui && npm run build:plugin",
     "dev": "concurrently \"npm run build:ui -- --watch\" \"npm run build:plugin -- --watch\"",
+    "plugin:dev": "npm run dev",
+    "api:install": "cd api && npm install",
+    "api:dev": "cd api && npm run dev",
     "test": "vitest",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit"

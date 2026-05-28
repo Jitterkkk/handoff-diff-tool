@@ -1,8 +1,40 @@
-# Handoff Diff Tool
+# Handoff Diff Tool — Monorepo
 
 [![CI](https://github.com/Jitterkkk/handoff-diff-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/Jitterkkk/handoff-diff-tool/actions/workflows/ci.yml)
 
 Plugin para Figma que detecta automaticamente o que mudou entre versões de uma tela e gera um relatório visual das diferenças para o time de desenvolvimento — sem que o dev precise perguntar nada ao designer.
+
+---
+
+## Estrutura do repositório
+
+```
+handoff-diff-tool/
+├── plugin/   ← Plugin Figma (React + TypeScript, sandbox + iframe)
+├── api/      ← Backend Node.js (Fastify + PostgreSQL + Redis)
+└── web/      ← Dashboard Next.js — em breve
+```
+
+### plugin/
+
+Código do plugin. Dois contextos isolados:
+
+- `plugin/plugin/` — sandbox do Figma (sem DOM, acessa `figma.*`)
+- `plugin/ui/` — iframe React (DOM, sem `figma.*`)
+- `plugin/shared/` — tipos compartilhados entre os dois
+
+### api/
+
+Servidor REST que conecta o plugin à dashboard web.
+
+- Fastify 4 + PostgreSQL 15 + Redis 7
+- Autenticação via JWT
+- Rotas: `POST /api/reviews`, `GET /api/reviews`, `PATCH /api/reviews/:id/items/:itemId`
+- Para rodar localmente: `cd api && docker compose up -d && npm install && npm run migrate && npm run dev`
+
+### web/
+
+Dashboard web para visualizar reviews fora do Figma. Em desenvolvimento.
 
 ---
 
@@ -109,41 +141,55 @@ Por padrão, mudanças de posição (x/y) são ignoradas para reduzir ruído. Li
 ## Estrutura de pastas
 
 ```
-handoff/
+handoff-diff-tool/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml         # CI: npm ci → testes → build em Node 20
 ├── manifest.json          # Configuração do plugin: nome, permissões, paths de build
-├── package.json           # Dependências e scripts npm
-├── tsconfig.json          # Configuração TypeScript (target ES2020, strict, bundler resolution)
+├── package.json           # Scripts raiz: build, dev, test, api:dev, api:install
+├── tsconfig.json          # TypeScript (target ES2020, strict, bundler resolution)
 ├── vite.config.ts         # Build duplo: UI com vite-plugin-singlefile / sandbox como IIFE
-├── vitest.config.ts       # Configuração de testes unitários (ambiente node)
-├── index.html             # Entry point da UI React (referenciado pelo Vite)
+├── vitest.config.ts       # Testes unitários do plugin (ambiente node)
+├── index.html             # Entry point da UI React
 │
-└── src/
+├── api/                   # Backend Node.js
+│   ├── docker-compose.yml # PostgreSQL 15 + Redis 7
+│   ├── src/
+│   │   ├── server.ts      # Entry point Fastify
+│   │   ├── config.ts      # Validação de env vars com Zod
+│   │   ├── db/            # postgres.js pool + runner de migrations
+│   │   ├── redis/         # ioredis + publishEvent
+│   │   ├── migrations/    # SQL migrations versionadas
+│   │   ├── routes/        # health, reviews, files
+│   │   ├── services/      # reviewService, fileService
+│   │   ├── schemas/       # Zod schemas das rotas
+│   │   └── types/         # Tipos de domínio
+│   └── src/__tests__/     # Testes de integração (Vitest)
+│
+└── plugin/                # Plugin Figma
     ├── shared/
-    │   └── types.ts       # Tipos compartilhados: NodeSnapshot, DiffResult, FrameMeta, FrameDiffGroup, mensagens
+    │   └── types.ts       # Tipos compartilhados: NodeSnapshot, DiffResult, FrameMeta, mensagens
     │
     ├── plugin/            # Código do sandbox — roda no ambiente isolado do Figma, sem DOM
-    │   ├── code.ts        # Entry point: roteador de mensagens, listener de selectionchange, multi-frame
+    │   ├── code.ts        # Entry point: roteador de mensagens, listener de selectionchange
     │   ├── snapshot.ts    # takeSnapshot(): serializa recursivamente um frame em NodeSnapshot
     │   ├── diff.ts        # diffSnapshots(): compara dois snapshots e retorna lista de DiffResult
     │   ├── diff.test.ts   # Testes unitários do diffSnapshots (Vitest)
-    │   ├── storage.ts     # Histórico de até 5 snapshots por frame com compressão LZString; settings; review storage
-    │   ├── reviewUtils.ts # Funções puras do review flow: computePendingCount, computeReviewStatus, applyItemCheck
-    │   ├── badge.ts       # upsertBadge / removeBadge / refreshBadge: badge visual no canvas do Figma
+    │   ├── storage.ts     # Histórico de até 5 snapshots por frame com compressão LZString
+    │   ├── reviewUtils.ts # Funções puras do review flow: computePendingCount, computeReviewStatus
+    │   ├── badge.ts       # upsertBadge / removeBadge / refreshBadge
     │   ├── badge.test.ts  # Testes de BADGE_COLORS e computePendingCount
     │   ├── review.test.ts # Testes de computeReviewStatus e applyItemCheck
-    │   ├── export.ts      # exportDiffAsJSON(): serializa diffs para JSON com sumário de severidade
-    │   └── highlight.ts   # createHighlight() / clearHighlights(): retângulo temporário sobre nodes alterados
+    │   ├── export.ts      # exportDiffAsJSON()
+    │   └── highlight.ts   # createHighlight() / clearHighlights()
     │
     └── ui/                # Código da interface — roda em iframe com acesso ao DOM
-        ├── main.tsx       # Entry point React: monta o root no #root
-        ├── App.tsx        # Componente raiz: estado global, reducer, abas Diff/Reviews, comunicação via postMessage
+        ├── main.tsx       # Entry point React
+        ├── App.tsx        # Componente raiz: estado global, reducer, abas Diff/Reviews
         └── components/
             ├── FrameSelector.tsx  # Header com nome(s) do(s) frame(s) e botões de ação
-            ├── VersionSelector.tsx # Seletor de versão histórica por timestamp (modo single-frame)
-            ├── DiffList.tsx       # Lista de mudanças agrupadas por severidade (alta / média / baixa)
+            ├── VersionSelector.tsx # Seletor de versão histórica
+            ├── DiffList.tsx       # Lista de mudanças agrupadas por severidade
             ├── DiffItem.tsx       # Card de mudança com tipo, valores antes/depois e click-to-zoom
             └── ReviewPanel.tsx    # Painel de reviews: lista, detalhe com progresso e checkboxes por severidade
 ```
