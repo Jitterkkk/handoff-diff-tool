@@ -37,29 +37,24 @@ async function request<T>(
   options: { token?: string; method?: string; body?: string; timeout?: number } = {},
 ): Promise<T> {
   const { token, method = 'GET', body, timeout = 10000 } = options;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
 
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = 'Bearer ' + token;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
 
-    const res = await fetch(API_BASE + path, {
-      method,
-      headers,
-      body,
-      signal: controller.signal,
+  const fetchPromise = fetch(API_BASE + path, { method, headers, body })
+    .then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error('API ' + res.status + ' at ' + path + ': ' + text);
+      }
+      return res.json() as Promise<T>;
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error('API ' + res.status + ' at ' + path + ': ' + text);
-    }
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Request timeout (' + timeout + 'ms): ' + path)), timeout),
+  );
 
-    return res.json() as Promise<T>;
-  } finally {
-    clearTimeout(timer);
-  }
+  return Promise.race([fetchPromise, timeoutPromise]);
 }
 
 function toPluginReviewSummary(r: BackendReview): ReviewSummary {
