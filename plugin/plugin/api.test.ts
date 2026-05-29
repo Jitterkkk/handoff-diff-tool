@@ -143,3 +143,75 @@ describe('erros genéricos', () => {
     ).rejects.toThrow('API 500');
   });
 });
+
+describe('authenticate — dados do figma.currentUser', () => {
+  it('envia figmaUserId e name exatos fornecidos pelo chamador', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ token: 'token-xyz' }));
+
+    await apiClient.authenticate({
+      figmaUserId: 'figma-user-abc',
+      name: 'Designer Name',
+      avatarUrl: 'https://cdn.figma.com/avatar.png',
+    });
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body['figmaUserId']).toBe('figma-user-abc');
+    expect(body['name']).toBe('Designer Name');
+    expect(body['avatarUrl']).toBe('https://cdn.figma.com/avatar.png');
+  });
+});
+
+describe('publishReview — fileKey correto', () => {
+  it('inclui o fileKey no payload enviado ao backend', async () => {
+    mockFetch.mockResolvedValueOnce(ok({
+      id: 'rev-id',
+      frame_id: 'f1',
+      frame_name: 'Home',
+      status: 'pending',
+      description: '',
+      published_at: new Date().toISOString(),
+      published_by_name: 'Dev',
+      total_items: 0,
+      checked_items: 0,
+    }));
+
+    await apiClient.publishReview('tok', {
+      fileKey: 'abc123-real-file-key',
+      frameName: 'Home',
+      frameId: 'f1',
+      description: '',
+      publishedByUserId: 'u1',
+      publishedByName: 'Dev',
+      items: [],
+    });
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body['fileKey']).toBe('abc123-real-file-key');
+  });
+});
+
+describe('modo offline gracioso', () => {
+  it('publishReview lança erro capturável — o chamador é responsável por tratar silenciosamente', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('NetworkError: Failed to fetch'));
+
+    let caught = false;
+    try {
+      await apiClient.publishReview('tok', {
+        fileKey: 'fk',
+        frameName: 'F',
+        frameId: 'id',
+        description: '',
+        publishedByUserId: 'u',
+        publishedByName: 'U',
+        items: [],
+      });
+    } catch {
+      caught = true;
+    }
+    // O erro é capturável (não uncaught). Em code.ts é capturado com try/catch
+    // e o fluxo local continua normalmente.
+    expect(caught).toBe(true);
+  });
+});

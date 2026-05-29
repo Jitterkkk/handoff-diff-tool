@@ -17,13 +17,14 @@ interface AppState {
   authStatus: 'loading' | 'authenticated' | 'offline';
   userName: string | null;
   error: string | null;
+  synced: boolean;
 }
 
 type Action =
   | { type: 'NO_FRAME' }
   | { type: 'FRAMES_UPDATED'; frames: FrameMeta[]; sessionStart: number }
   | { type: 'PUBLISH_START' }
-  | { type: 'PUBLISH_SUCCESS' }
+  | { type: 'PUBLISH_SUCCESS'; synced: boolean }
   | { type: 'PUBLISH_RESET' }
   | { type: 'ERROR'; message: string }
   | { type: 'RETRY' }
@@ -36,6 +37,7 @@ const initial: AppState = {
   authStatus: 'loading',
   userName: null,
   error: null,
+  synced: false,
 };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -53,7 +55,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'PUBLISH_START':
       return { ...state, status: 'publishing', error: null };
     case 'PUBLISH_SUCCESS':
-      return { ...state, status: 'published', error: null };
+      return { ...state, status: 'published', error: null, synced: action.synced };
     case 'PUBLISH_RESET':
       return { ...state, status: state.frames.length > 0 ? 'ready' : 'no_frame' };
     case 'ERROR':
@@ -96,7 +98,7 @@ export function App() {
           dispatch({ type: 'FRAMES_UPDATED', frames: msg.frames, sessionStart: 0 });
           break;
         case 'REVIEW_PUBLISHED':
-          dispatch({ type: 'PUBLISH_SUCCESS' });
+          dispatch({ type: 'PUBLISH_SUCCESS', synced: msg.synced ?? false });
           break;
         case 'AUTH_STATUS':
           dispatch({ type: 'AUTH_STATUS', authenticated: msg.authenticated, userName: msg.userName });
@@ -163,16 +165,26 @@ export function App() {
       {state.status === 'published' && (
         <div style={styles.center}>
           <div style={styles.successIcon}>✓</div>
-          <p style={styles.successTitle}>Review publicado!</p>
-          <p style={styles.successSubtitle}>O time será notificado</p>
-          <a
-            href={DASHBOARD_URL}
-            target="_blank"
-            rel="noreferrer"
-            style={styles.dashboardLink}
-          >
-            Ver na dashboard →
-          </a>
+          <p style={styles.successTitle}>
+            {state.synced
+              ? 'Review publicado e sincronizado com o time!'
+              : 'Review salvo localmente'}
+          </p>
+          <p style={styles.successSubtitle}>
+            {state.synced
+              ? 'O time será notificado'
+              : 'Conecte-se para sincronizar com o time'}
+          </p>
+          {state.synced && (
+            <a
+              href={DASHBOARD_URL}
+              target="_blank"
+              rel="noreferrer"
+              style={styles.dashboardLink}
+            >
+              Ver na dashboard →
+            </a>
+          )}
         </div>
       )}
 

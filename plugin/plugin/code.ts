@@ -153,29 +153,29 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         await saveReview(review);
         await refreshBadge(frame.id);
 
+        let synced = false;
         if (authToken !== null) {
-          void (async () => {
-            try {
-              const fileKey = figma.fileKey !== undefined ? figma.fileKey : 'local';
-              const backendReview = await apiClient.publishReview(authToken!, {
-                fileKey,
-                frameName: frame.name,
-                frameId: frame.id,
-                description: msg.description,
-                publishedByUserId: figma.currentUser !== null ? (figma.currentUser.id ?? figma.currentUser.name) : 'unknown',
-                publishedByName: figma.currentUser !== null ? figma.currentUser.name : 'Designer',
-                items: diffs,
-              });
-              review.backendReviewId = backendReview.id;
-              await saveReview(review);
-            } catch (err) {
-              console.error('[handoff] publishReview backend error:', String(err));
-            }
-          })();
+          try {
+            const fileKey = figma.fileKey !== undefined ? figma.fileKey : 'local-' + frame.id;
+            const backendReview = await apiClient.publishReview(authToken, {
+              fileKey,
+              frameName: frame.name,
+              frameId: frame.id,
+              description: msg.description,
+              publishedByUserId: figma.currentUser !== null ? (figma.currentUser.id ?? figma.currentUser.name) : 'unknown',
+              publishedByName: figma.currentUser !== null ? figma.currentUser.name : 'Designer',
+              items: diffs,
+            });
+            review.backendReviewId = backendReview.id;
+            await saveReview(review);
+            synced = true;
+          } catch (err) {
+            console.error('[handoff] publishReview backend error:', String(err));
+          }
         }
 
         const metas = await Promise.all(frames.map(buildFrameMeta));
-        send({ type: 'REVIEW_PUBLISHED', review, frames: metas });
+        send({ type: 'REVIEW_PUBLISHED', review, frames: metas, synced });
       } catch (err) {
         send({ type: 'ERROR', message: 'Erro ao publicar review: ' + String(err) });
       }
