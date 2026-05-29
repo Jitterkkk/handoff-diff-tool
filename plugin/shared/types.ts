@@ -87,41 +87,31 @@ export interface SnapshotEntry {
 export interface SnapshotHistory {
   frameId: string;
   frameName: string;
-  entries: SnapshotEntry[]; // máx 5, índice 0 = mais antigo
+  entries: SnapshotEntry[];
 }
 
-// Metadados para a UI — sem o snapshot completo
 export interface SnapshotEntryMeta {
   index: number;
   savedAt: number;
   label?: string;
 }
 
-// Frame com histórico — usado em mensagens plugin → UI
 export interface FrameMeta {
   id: string;
   name: string;
   historyEntries: SnapshotEntryMeta[];
 }
 
-// Diffs de um frame específico
-export interface FrameDiffGroup {
-  frameId: string;
-  frameName: string;
-  diffs: DiffResult[];
-  savedAt: number;
-}
-
 // ─── Review flow ─────────────────────────────────────────────────────────────
 
 export interface ReviewItem {
   diffResult: DiffResult;
-  checkedAt: number | null;  // null = pendente, timestamp = revisado
+  checkedAt: number | null;
   checkedBy: string | null;
 }
 
 export interface FrameReview {
-  reviewId: string;           // uuid simples: Date.now().toString(36)
+  reviewId: string;
   frameId: string;
   frameName: string;
   publishedAt: number;
@@ -129,7 +119,7 @@ export interface FrameReview {
   description: string;
   items: ReviewItem[];
   status: 'pending' | 'in_progress' | 'done';
-  backendReviewId?: string;   // UUID retornado pelo backend ao sincronizar
+  backendReviewId?: string;
 }
 
 export interface ReviewSummary {
@@ -146,19 +136,11 @@ export interface ReviewSummary {
 // UI → Plugin
 export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
-  | { type: 'GET_DIFF'; entryIndex: number; includePosition: boolean }
-  | { type: 'GENERATE_REPORT'; entryIndex: number; includePosition: boolean }
+  | { type: 'PUBLISH_REVIEW'; description: string }
   | { type: 'ZOOM_TO_NODE'; nodeId: string }
   | { type: 'CLEAR_HIGHLIGHTS' }
-  | { type: 'EXPORT_DIFF'; frameDiffs: FrameDiffGroup[] }
   | { type: 'GET_SETTINGS' }
-  | { type: 'SAVE_SETTINGS'; includePosition: boolean }
-  | { type: 'PUBLISH_REVIEW'; description: string }
-  | { type: 'GET_ALL_REVIEWS' }
-  | { type: 'CHECK_REVIEW_ITEM'; reviewId: string; frameId: string; nodeId: string; diffType: string }
-  | { type: 'UNCHECK_REVIEW_ITEM'; reviewId: string; frameId: string; nodeId: string; diffType: string }
-  | { type: 'NAVIGATE_TO_FRAME'; frameId: string }
-  | { type: 'LOAD_REVIEW_DETAIL'; frameId: string };
+  | { type: 'SAVE_SETTINGS'; includePosition: boolean };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -166,14 +148,7 @@ export type PluginToUIMessage =
   | { type: 'CURRENT_FRAMES'; frames: FrameMeta[]; sessionStart: number }
   | { type: 'NO_FRAME_SELECTED' }
   | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
-  | { type: 'DIFF_RESULT'; frameDiffs: FrameDiffGroup[] }
-  | { type: 'NO_PREVIOUS_SNAPSHOT' }
-  | { type: 'DIFF_EXPORT'; json: string; fileName: string }
-  | { type: 'REPORT_READY'; html: string; fileName: string }
-  | { type: 'SETTINGS'; includePosition: boolean }
   | { type: 'REVIEW_PUBLISHED'; review: FrameReview; frames: FrameMeta[] }
-  | { type: 'ALL_REVIEWS'; reviews: ReviewSummary[] }
-  | { type: 'REVIEW_UPDATED'; review: FrameReview }
-  | { type: 'REVIEW_DETAIL'; review: FrameReview }
-  | { type: 'REVIEW_NOTIFICATION'; frameId: string; frameName: string; pendingItems: number; status: 'pending' | 'in_progress' }
+  | { type: 'NO_PREVIOUS_SNAPSHOT' }
+  | { type: 'SETTINGS'; includePosition: boolean }
   | { type: 'ERROR'; message: string };

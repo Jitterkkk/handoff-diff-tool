@@ -2,19 +2,26 @@
 
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
-import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, loadReview, loadAllReviews, updateReviewItem, saveAuthToken, loadAuthToken } from './storage';
-import { apiClient } from './api';
-import { exportDiffAsJSON, buildExportFileName } from './export';
+import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, saveAuthToken, loadAuthToken } from './storage';
 import { createHighlight, clearHighlights } from './highlight';
 import { refreshBadge } from './badge';
-import { generateHTMLReport, buildReportFileName } from './reportGenerator';
+import { apiClient } from './api';
 import type {
-  FrameDiffGroup,
   FrameMeta,
   FrameReview,
   PluginToUIMessage,
   UIToPluginMessage,
 } from '../shared/types';
+
+function send(msg: PluginToUIMessage): void {
+  figma.ui.postMessage(msg);
+}
+
+function getSelectedFrames(): FrameNode[] {
+  return figma.currentPage.selection.filter(
+    (n): n is FrameNode => n.type === 'FRAME',
+  );
+}
 
 // ─── Auth state ───────────────────────────────────────────────────────────────
 
@@ -40,71 +47,12 @@ async function authenticateUser(): Promise<string | null> {
   }
 }
 
-// ─── Init (async IIFE — top-level await não é suportado no formato IIFE do Rollup) ──
-
-void (async () => {
-  authToken = await authenticateUser();
-
-  figma.showUI(__html__, {
-    width: 380,
-    height: 560,
-    title: 'Handoff Diff Tool',
-  });
-
-  send({
-    type: 'AUTH_STATUS',
-    authenticated: authToken !== null,
-    userName: figma.currentUser !== null ? figma.currentUser.name : null,
-  });
-})();
-
-function send(msg: PluginToUIMessage): void {
-  figma.ui.postMessage(msg);
-}
-
-function getSelectedFrames(): FrameNode[] {
-  return figma.currentPage.selection.filter(
-    (n): n is FrameNode => n.type === 'FRAME',
-  );
-}
-
-// ─── session state (in-memory, lives while plugin is open) ───────────────────
+// ─── Session state ────────────────────────────────────────────────────────────
 
 let sessionStart = 0;
-const baselinePngs = new Map<string, string>(); // frameId → base64 PNG
-const capturingFrameIds = new Set<string>(); // frames with baseline capture in progress
+const capturingFrameIds = new Set<string>();
 
-function uint8ToBase64(bytes: Uint8Array): string {
-  let bin = '';
-  for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
-}
-
-async function exportFramePng(frame: FrameNode): Promise<string | null> {
-  try {
-    const bytes = await frame.exportAsync({
-      format: 'PNG',
-      constraint: { type: 'SCALE', value: 1 },
-    });
-    return uint8ToBase64(bytes);
-  } catch {
-    return null;
-  }
-}
-
-async function exportNodePng(node: SceneNode): Promise<string | null> {
-  try {
-    const bytes = await (node as FrameNode).exportAsync({
-      format: 'PNG',
-      constraint: { type: 'SCALE', value: 1 },
-    });
-    return uint8ToBase64(bytes);
-  } catch {
-    return null;
-  }
-}
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function buildFrameMeta(frame: FrameNode): Promise<FrameMeta> {
   const history = await loadHistory(frame.id);
@@ -119,15 +67,10 @@ async function captureBaselines(frames: FrameNode[]): Promise<void> {
       const snapshot = takeSnapshot(frame);
       await saveToHistory(frame.id, frame.name, snapshot);
       capturingFrameIds.delete(frame.id);
-      // PNG export is fire-and-forget so it doesn't block the UI update
-      void exportFramePng(frame).then(png => {
-        if (png) baselinePngs.set(frame.id, png);
-      });
     }),
   );
 }
 
-// Captures baseline only for frames that don't have history yet (idempotent)
 async function ensureBaselines(frames: FrameNode[]): Promise<void> {
   const candidates = frames.filter(f => !capturingFrameIds.has(f.id));
   const toCapture: FrameNode[] = [];
@@ -150,7 +93,25 @@ async function notifyCurrentFrames(withBaseline = false): Promise<void> {
   void Promise.all(frames.map(f => refreshBadge(f.id)));
 }
 
-// ─── message handler ─────────────────────────────────────────────────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+void (async () => {
+  authToken = await authenticateUser();
+
+  figma.showUI(__html__, {
+    width: 320,
+    height: 420,
+    title: 'Handoff',
+  });
+
+  send({
+    type: 'AUTH_STATUS',
+    authenticated: authToken !== null,
+    userName: figma.currentUser !== null ? figma.currentUser.name : null,
+  });
+})();
+
+// ─── Message handler ──────────────────────────────────────────────────────────
 
 figma.ui.onmessage = async (raw: unknown): Promise<void> => {
   const msg = raw as UIToPluginMessage;
@@ -158,119 +119,6 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
   switch (msg.type) {
     case 'GET_CURRENT_FRAME': {
       await notifyCurrentFrames(true);
-      break;
-    }
-
-    case 'GET_DIFF': {
-      const frames = getSelectedFrames();
-      if (frames.length === 0) {
-        send({ type: 'ERROR', message: 'Selecione ao menos um frame para comparar.' });
-        break;
-      }
-      const isMulti = frames.length > 1;
-      const frameDiffs: FrameDiffGroup[] = [];
-      let anyHadHistory = false;
-
-      for (const frame of frames) {
-        const history = await loadHistory(frame.id);
-        if (!history || history.entries.length === 0) continue;
-        anyHadHistory = true;
-        const idx = isMulti
-          ? history.entries.length - 1
-          : Math.min(msg.entryIndex, history.entries.length - 1);
-        const entry = history.entries[idx];
-        const current = takeSnapshot(frame);
-        const diffs = diffSnapshots(entry.snapshot, current, {
-          includePosition: msg.includePosition,
-        });
-        frameDiffs.push({ frameId: frame.id, frameName: frame.name, diffs, savedAt: entry.savedAt });
-      }
-
-      if (!anyHadHistory) {
-        send({ type: 'NO_PREVIOUS_SNAPSHOT' });
-      } else {
-        send({ type: 'DIFF_RESULT', frameDiffs });
-      }
-      break;
-    }
-
-    case 'GENERATE_REPORT': {
-      try {
-        const frames = getSelectedFrames();
-        if (frames.length === 0) {
-          send({ type: 'ERROR', message: 'Selecione ao menos um frame para gerar o relatório.' });
-          break;
-        }
-
-        const isMulti = frames.length > 1;
-        const reportFrames = [];
-        let anyHadHistory = false;
-
-        for (const frame of frames) {
-          const history = await loadHistory(frame.id);
-          if (!history || history.entries.length === 0) continue;
-          anyHadHistory = true;
-
-          const idx = isMulti
-            ? history.entries.length - 1
-            : Math.min(msg.entryIndex, history.entries.length - 1);
-          const entry = history.entries[idx];
-
-          const finalSnapshot = takeSnapshot(frame);
-          const diffs = diffSnapshots(entry.snapshot, finalSnapshot, {
-            includePosition: msg.includePosition,
-          });
-
-          // Export final frame PNG
-          const afterPng = await exportFramePng(frame);
-
-          // Export node PNGs in parallel, capped at 20 to avoid timeout
-          const nodePngs: Record<string, string> = {};
-          const nodeTypes: Record<string, string> = {};
-          const exportableDiffs = diffs
-            .filter(d => d.type !== 'REMOVED')
-            .slice(0, 20);
-
-          await Promise.all(exportableDiffs.map(async (diff) => {
-            const node = figma.getNodeById(diff.nodeId);
-            if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
-              nodeTypes[diff.nodeId] = node.type;
-              const png = await exportNodePng(node as SceneNode);
-              if (png) nodePngs[diff.nodeId] = png;
-            }
-          }));
-
-          reportFrames.push({
-            group: {
-              frameId: frame.id,
-              frameName: frame.name,
-              diffs,
-              savedAt: entry.savedAt,
-            },
-            beforePng: baselinePngs.get(frame.id) ?? null,
-            afterPng,
-            nodePngs,
-            nodeTypes,
-          });
-        }
-
-        if (!anyHadHistory) {
-          send({ type: 'NO_PREVIOUS_SNAPSHOT' });
-          break;
-        }
-
-        const designerName = figma.currentUser !== null ? figma.currentUser.name : 'Designer';
-        const html = generateHTMLReport({
-          designerName,
-          sessionStart: sessionStart || Date.now(),
-          reportAt: Date.now(),
-          frames: reportFrames,
-        });
-        const fileName = buildReportFileName(reportFrames.map(f => ({ frameName: f.group.frameName })));
-        send({ type: 'REPORT_READY', html, fileName });
-      } catch (err) {
-        send({ type: 'ERROR', message: 'Erro ao gerar relatório: ' + String(err) });
-      }
       break;
     }
 
@@ -284,7 +132,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         const frame = frames[0];
         const history = await loadHistory(frame.id);
         if (!history || history.entries.length === 0) {
-          send({ type: 'ERROR', message: 'Nenhum snapshot salvo para este frame. Aguarde o baseline ser capturado.' });
+          send({ type: 'ERROR', message: 'Nenhum baseline salvo. Aguarde um momento e tente novamente.' });
           break;
         }
         const entry = history.entries[history.entries.length - 1];
@@ -303,6 +151,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         };
 
         await saveReview(review);
+        await refreshBadge(frame.id);
 
         if (authToken !== null) {
           void (async () => {
@@ -325,7 +174,6 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
           })();
         }
 
-        await refreshBadge(frame.id);
         const metas = await Promise.all(frames.map(buildFrameMeta));
         send({ type: 'REVIEW_PUBLISHED', review, frames: metas });
       } catch (err) {
@@ -334,73 +182,11 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
       break;
     }
 
-    case 'GET_ALL_REVIEWS': {
-      if (authToken !== null) {
-        try {
-          const fileKey = figma.fileKey !== undefined ? figma.fileKey : 'local';
-          const reviews = await apiClient.getReviews(authToken, fileKey);
-          send({ type: 'ALL_REVIEWS', reviews });
-        } catch (err) {
-          console.error('[handoff] getReviews backend error:', String(err));
-          const reviews = await loadAllReviews();
-          send({ type: 'ALL_REVIEWS', reviews });
-        }
-      } else {
-        const reviews = await loadAllReviews();
-        send({ type: 'ALL_REVIEWS', reviews });
-      }
-      break;
-    }
-
-    case 'CHECK_REVIEW_ITEM': {
-      const checkedBy = figma.currentUser !== null ? figma.currentUser.name : 'Dev';
-      const review = await updateReviewItem(msg.frameId, msg.nodeId, msg.diffType, true, checkedBy);
-      if (!review) {
-        send({ type: 'ERROR', message: 'Review não encontrado.' });
-        break;
-      }
-      if (review.status === 'done') clearHighlights();
-      await refreshBadge(msg.frameId);
-      send({ type: 'REVIEW_UPDATED', review });
-      break;
-    }
-
-    case 'UNCHECK_REVIEW_ITEM': {
-      const checkedBy = figma.currentUser !== null ? figma.currentUser.name : 'Dev';
-      const review = await updateReviewItem(msg.frameId, msg.nodeId, msg.diffType, false, checkedBy);
-      if (!review) {
-        send({ type: 'ERROR', message: 'Review não encontrado.' });
-        break;
-      }
-      await refreshBadge(msg.frameId);
-      send({ type: 'REVIEW_UPDATED', review });
-      break;
-    }
-
-    case 'NAVIGATE_TO_FRAME': {
-      const node = figma.getNodeById(msg.frameId);
-      if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
-        figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
-      }
-      break;
-    }
-
-    case 'LOAD_REVIEW_DETAIL': {
-      const review = await loadReview(msg.frameId);
-      if (!review) {
-        send({ type: 'ERROR', message: 'Review não encontrado.' });
-        break;
-      }
-      send({ type: 'REVIEW_DETAIL', review });
-      break;
-    }
-
     case 'ZOOM_TO_NODE': {
       const node = figma.getNodeById(msg.nodeId);
       if (node && node.type !== 'DOCUMENT' && node.type !== 'PAGE') {
-        const sceneNode = node as SceneNode;
-        figma.viewport.scrollAndZoomIntoView([sceneNode]);
-        createHighlight(sceneNode);
+        figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
+        createHighlight(node as SceneNode);
       }
       break;
     }
@@ -420,32 +206,9 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
       await saveSettings({ includePosition: msg.includePosition });
       break;
     }
-
-    case 'EXPORT_DIFF': {
-      const json = exportDiffAsJSON(msg.frameDiffs);
-      const fileName = buildExportFileName(msg.frameDiffs);
-      send({ type: 'DIFF_EXPORT', json, fileName });
-      break;
-    }
   }
 };
 
 figma.on('selectionchange', async () => {
   await notifyCurrentFrames(true);
-  const frames = getSelectedFrames();
-  for (let i = 0; i < frames.length; i++) {
-    const frame = frames[i];
-    const review = await loadReview(frame.id);
-    if (review !== null && review.status !== 'done') {
-      const pendingItems = review.items.filter(item => item.checkedAt === null).length;
-      send({
-        type: 'REVIEW_NOTIFICATION',
-        frameId: frame.id,
-        frameName: frame.name,
-        pendingItems,
-        status: review.status as 'pending' | 'in_progress',
-      });
-      break;
-    }
-  }
 });
