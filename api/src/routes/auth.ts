@@ -73,7 +73,7 @@ export async function authRoutes(app: FastifyInstance) {
     const state = crypto.randomUUID()
     await redis.set(`oauth:state:${state}`, '1', { ex: 600 })
 
-    const redirectUri = `${config.API_BASE}/auth/figma/callback`
+    const redirectUri = 'https://handoff-api.onrender.com/auth/figma/callback'
     const params = new URLSearchParams({
       client_id: config.FIGMA_CLIENT_ID,
       redirect_uri: redirectUri,
@@ -110,7 +110,7 @@ export async function authRoutes(app: FastifyInstance) {
           grant_type: 'authorization_code',
           client_id: config.FIGMA_CLIENT_ID,
           client_secret: config.FIGMA_CLIENT_SECRET,
-          redirect_uri: `${config.API_BASE}/auth/figma/callback`,
+          redirect_uri: 'https://handoff-api.onrender.com/auth/figma/callback',
           code,
         }).toString(),
       })
