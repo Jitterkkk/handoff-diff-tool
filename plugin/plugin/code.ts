@@ -163,7 +163,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
           try {
             const fileKey = figma.fileKey !== undefined ? figma.fileKey : 'local-' + frame.id;
             await apiClient.wakeUp();
-          const backendReview = await apiClient.publishReview(authToken, {
+            const backendReview = await apiClient.publishReview(authToken, {
               fileKey,
               frameName: frame.name,
               frameId: frame.id,
@@ -176,9 +176,8 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
             await saveReview(review);
             synced = true;
           } catch (err: unknown) {
-            const e = err as { message?: string; status?: number };
-            console.error('[handoff] publishReview ERRO:', e?.message ?? String(err));
-            console.error('[handoff] publishReview STATUS:', e?.status ?? 'desconhecido');
+            console.error('[handoff] publishReview ERRO:', String(err));
+            console.error('[handoff] publishReview STATUS:', (err as { status?: unknown })?.status);
             synced = false;
           }
         }
