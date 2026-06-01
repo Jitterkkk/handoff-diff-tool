@@ -29,7 +29,19 @@ export async function buildApp() {
   })
 
   await app.register(helmet)
-  await app.register(cors, { origin: config.FRONTEND_URL })
+  await app.register(cors, {
+    origin: (origin, callback) => {
+      const allowed = [
+        config.FRONTEND_URL,
+        'http://localhost:3000',
+      ]
+      if (!origin || origin === 'null' || allowed.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error('Not allowed by CORS'), false)
+      }
+    },
+  })
   await app.register(jwt, { secret: config.JWT_SECRET })
 
   app.decorate('authenticate', async (req: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) => {
