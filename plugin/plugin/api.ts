@@ -36,7 +36,7 @@ async function request<T>(
   path: string,
   options: { token?: string; method?: string; body?: string; timeout?: number } = {},
 ): Promise<T> {
-  const { token, method = 'GET', body, timeout = 10000 } = options;
+  const { token, method = 'GET', body, timeout = 35000 } = options;
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -73,6 +73,7 @@ function toPluginReviewSummary(r: BackendReview): ReviewSummary {
 // ─── Interface & implementation ───────────────────────────────────────────────
 
 export interface ApiClient {
+  wakeUp(): Promise<void>;
   authenticate(user: { figmaUserId: string; name: string; avatarUrl?: string }): Promise<string>;
   publishReview(token: string, payload: {
     fileKey: string;
@@ -89,6 +90,14 @@ export interface ApiClient {
 }
 
 class ApiClientImpl implements ApiClient {
+  async wakeUp(): Promise<void> {
+    try {
+      await request<unknown>('/health', { timeout: 35000 });
+    } catch {
+      // ignora erro — só queremos acordar o servidor
+    }
+  }
+
   async authenticate(user: { figmaUserId: string; name: string; avatarUrl?: string }): Promise<string> {
     const data = await request<{ token: string }>('/auth/plugin', {
       method: 'POST',

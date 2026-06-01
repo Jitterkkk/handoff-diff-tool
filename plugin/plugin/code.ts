@@ -162,7 +162,8 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         if (authToken !== null) {
           try {
             const fileKey = figma.fileKey !== undefined ? figma.fileKey : 'local-' + frame.id;
-            const backendReview = await apiClient.publishReview(authToken, {
+            await apiClient.wakeUp();
+          const backendReview = await apiClient.publishReview(authToken, {
               fileKey,
               frameName: frame.name,
               frameId: frame.id,
