@@ -139,6 +139,11 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         const current = takeSnapshot(frame);
         const diffs = diffSnapshots(entry.snapshot, current, { includePosition: false });
 
+        if (diffs.length === 0) {
+          figma.ui.postMessage({ type: 'REVIEW_PUBLISHED', synced: false, reason: 'no_changes' });
+          return;
+        }
+
         const review: FrameReview = {
           reviewId: Date.now().toString(36),
           frameId: frame.id,
@@ -169,8 +174,11 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
             review.backendReviewId = backendReview.id;
             await saveReview(review);
             synced = true;
-          } catch (err) {
-            console.error('[handoff] publishReview backend error:', String(err));
+          } catch (err: unknown) {
+            const e = err as { message?: string; status?: number };
+            console.error('[handoff] publishReview ERRO:', e?.message ?? String(err));
+            console.error('[handoff] publishReview STATUS:', e?.status ?? 'desconhecido');
+            synced = false;
           }
         }
 

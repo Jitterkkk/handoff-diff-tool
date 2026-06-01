@@ -21,7 +21,7 @@ export const PublishReviewBodySchema = z.object({
     email: z.string().email().optional(),
     avatarUrl: z.string().url().optional(),
   }),
-  items: z.array(DiffResultSchema).min(1),
+  items: z.array(DiffResultSchema),
 })
 
 export const ListReviewsQuerySchema = z.object({
