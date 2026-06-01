@@ -97,7 +97,7 @@ export async function publishReview(body: PublishReviewBody): Promise<ReviewDeta
   }
 }
 
-export async function listReviews(fileKey: string, status?: string): Promise<ReviewSummary[]> {
+export async function listReviews(fileKey?: string, status?: string): Promise<ReviewSummary[]> {
   const rows = await sql<ReviewSummary[]>`
     SELECT
       r.id,
@@ -114,7 +114,8 @@ export async function listReviews(fileKey: string, status?: string): Promise<Rev
     JOIN files f ON f.id = r.file_id
     JOIN users u ON u.id = r.published_by
     LEFT JOIN review_items ri ON ri.review_id = r.id
-    WHERE f.figma_file_key = ${fileKey}
+    WHERE TRUE
+      ${fileKey ? sql`AND f.figma_file_key = ${fileKey}` : sql``}
       ${status ? sql`AND r.status = ${status}` : sql``}
     GROUP BY r.id, u.name
     ORDER BY r.published_at DESC
