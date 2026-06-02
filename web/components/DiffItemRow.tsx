@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { cn } from '@/lib/utils'
-import { diffLabel, ValueBadge } from '@/lib/diffFormatters'
+import { diffLabel, BeforeAfterPreview } from '@/lib/diffFormatters'
 import type { ReviewItem } from '@/lib/types'
 import { toggleReviewItem } from '@/app/actions'
 
@@ -29,10 +29,10 @@ export function DiffItemRow({ item, reviewId, fileKey }: Props) {
   return (
     <div
       className={cn(
-        'group flex items-start gap-3 px-4 py-3 rounded-lg border transition-all',
+        'flex items-start gap-3 px-4 py-3 rounded-lg border transition-all',
         isChecked
           ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30'
-          : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750',
+          : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
         isPending && 'opacity-60',
       )}
     >
@@ -53,38 +53,39 @@ export function DiffItemRow({ item, reviewId, fileKey }: Props) {
       </button>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn(
-            'text-sm font-semibold text-gray-900 dark:text-gray-100',
-            isChecked && 'line-through text-gray-400 dark:text-gray-600',
-          )}>
-            {item.node_name.replace(/^[\s–\-]+/, '')}
-          </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {diffLabel(item.diff_type)}
-          </span>
-          {isChecked && (
-            <span className="text-xs text-green-600 dark:text-green-400 font-medium">· Revisado</span>
-          )}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <span className={cn(
+              'text-sm font-semibold text-gray-900 dark:text-gray-100',
+              isChecked && 'line-through text-gray-400 dark:text-gray-600',
+            )}>
+              {item.node_name.replace(/^[\s–\-]+/, '')}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {diffLabel(item.diff_type)}
+            </span>
+            {isChecked && (
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">· Revisado</span>
+            )}
+          </div>
           {figmaUrl && (
             <a
               href={figmaUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-auto text-xs text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors whitespace-nowrap opacity-0 group-hover:opacity-100"
+              className="text-xs text-blue-500 dark:text-blue-400 hover:underline whitespace-nowrap shrink-0"
             >
-              ↗ Ver no Figma
+              ↗ Figma
             </a>
           )}
         </div>
 
-        {(item.before_value !== null || item.after_value !== null) && (
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <ValueBadge value={item.before_value} variant="before" />
-            <span className="text-gray-300 dark:text-gray-600 text-xs">→</span>
-            <ValueBadge value={item.after_value} variant="after" />
-          </div>
-        )}
+        <BeforeAfterPreview
+          diffType={item.diff_type}
+          beforeValue={item.before_value}
+          afterValue={item.after_value}
+          nodeName={item.node_name.replace(/^[\s–\-]+/, '')}
+        />
       </div>
     </div>
   )
