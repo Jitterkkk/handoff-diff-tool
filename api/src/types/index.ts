@@ -76,6 +76,7 @@ export interface PublicReviewItem {
 
 export interface PublicReview {
   id: string
+  file_key: string
   frame_name: string
   description: string
   status: ReviewStatus

@@ -7,17 +7,103 @@ import { cn, timeAgo } from '@/lib/utils'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://handoff-api.onrender.com'
 
+// ── Labels de severidade ───────────────────────────────────────────────────────
 const SEVERITY_ICONS: Record<Severity, string> = { high: '🔴', medium: '🟡', low: '🟢' }
 const SEVERITY_LABELS: Record<Severity, string> = {
   high: 'Alta prioridade',
   medium: 'Média prioridade',
   low: 'Baixa prioridade',
 }
-const DIFF_ICONS: Record<string, string> = {
-  COLOR: '🎨', SIZE: '⇔', TYPOGRAPHY: 'T', CONTENT: '✏',
-  ADDED: '+', REMOVED: '−', COMPONENT: '◈', LAYOUT: '⊞', POSITION: '↖',
+
+// ── Labels de tipo de diff em português ───────────────────────────────────────
+const DIFF_LABELS: Record<string, string> = {
+  REMOVED:            '🗑 Removido',
+  ADDED:              '✨ Adicionado',
+  TEXT_CHANGED:       '✏️ Texto alterado',
+  COLOR_CHANGED:      '🎨 Cor alterada',
+  SIZE_CHANGED:       '📐 Tamanho alterado',
+  POSITION_CHANGED:   '📍 Posição alterada',
+  VISIBILITY_CHANGED: '👁 Visibilidade alterada',
+  // legado (plugin v0.1)
+  COLOR:      '🎨 Cor alterada',
+  SIZE:       '📐 Tamanho alterado',
+  TYPOGRAPHY: '✏️ Texto alterado',
+  CONTENT:    '✏️ Conteúdo alterado',
+  LAYOUT:     '📐 Layout alterado',
+  POSITION:   '📍 Posição alterada',
+  COMPONENT:  '🔄 Componente alterado',
 }
 
+function diffLabel(type: string): string {
+  return DIFF_LABELS[type] ?? '🔄 Alterado'
+}
+
+// ── Formatação de valores before/after ────────────────────────────────────────
+function isRgb(v: unknown): v is { r: number; g: number; b: number } {
+  return typeof v === 'object' && v !== null && 'r' in v && 'g' in v && 'b' in v
+}
+function isSize(v: unknown): v is { width: number; height: number } {
+  return typeof v === 'object' && v !== null && 'width' in v && 'height' in v
+}
+function isPosition(v: unknown): v is { x: number; y: number } {
+  return typeof v === 'object' && v !== null && 'x' in v && 'y' in v
+}
+function toHex(channel: number): string {
+  // Figma returns 0-1 floats; values > 1 treated as 0-255
+  const v = channel <= 1 ? Math.round(channel * 255) : Math.round(channel)
+  return v.toString(16).padStart(2, '0')
+}
+
+function ValueBadge({ value, variant }: { value: unknown; variant: 'before' | 'after' }) {
+  const base = variant === 'before'
+    ? 'bg-red-50 text-red-600'
+    : 'bg-green-50 text-green-600'
+
+  if (value === null || value === undefined) {
+    return <span className="text-gray-300 text-xs">—</span>
+  }
+
+  if (isRgb(value)) {
+    const hex = `#${toHex(value.r)}${toHex(value.g)}${toHex(value.b)}`
+    return (
+      <span className={cn('inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs font-mono', base)}>
+        <span
+          className="w-3 h-3 rounded-sm border border-black/10 shrink-0"
+          style={{ background: hex }}
+        />
+        {hex}
+      </span>
+    )
+  }
+
+  if (isSize(value)) {
+    return (
+      <span className={cn('px-1.5 py-0.5 rounded text-xs font-mono', base)}>
+        {Math.round(value.width)}×{Math.round(value.height)}
+      </span>
+    )
+  }
+
+  if (isPosition(value)) {
+    return (
+      <span className={cn('px-1.5 py-0.5 rounded text-xs font-mono', base)}>
+        x: {Math.round(value.x)}, y: {Math.round(value.y)}
+      </span>
+    )
+  }
+
+  const text = typeof value === 'string'
+    ? `"${value.slice(0, 38)}"`
+    : String(value).slice(0, 40)
+
+  return (
+    <span className={cn('px-1.5 py-0.5 rounded text-xs font-mono', base)}>
+      {text}
+    </span>
+  )
+}
+
+// ── Status derivado dos items ──────────────────────────────────────────────────
 function deriveStatus(items: PublicReviewItem[]): ReviewStatus {
   if (items.length === 0) return 'pending'
   const checked = items.filter(i => i.checked_at !== null).length
@@ -26,6 +112,7 @@ function deriveStatus(items: PublicReviewItem[]): ReviewStatus {
   return 'in_progress'
 }
 
+// ── Componente principal ───────────────────────────────────────────────────────
 interface Props {
   initialReview: PublicReview
   reviewId: string
@@ -94,6 +181,9 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
   const bySeverity: Record<Severity, PublicReviewItem[]> = { high: [], medium: [], low: [] }
   for (const item of review.items) bySeverity[item.severity].push(item)
 
+  // Só mostra deep link se fileKey for real (não local-)
+  const hasFigmaLink = review.file_key && !review.file_key.startsWith('local-')
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -104,6 +194,7 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
+        {/* Cabeçalho do review */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-1">{review.frame_name}</h1>
           <p className="text-sm text-gray-400">
@@ -119,6 +210,7 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
           )}
         </div>
 
+        {/* Barra de progresso */}
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 mb-6 flex items-center gap-4">
           <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -131,6 +223,7 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
           </span>
         </div>
 
+        {/* Banner de conclusão */}
         {review.status === 'done' && (
           <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
             <span className="text-green-500">✓</span>
@@ -140,6 +233,7 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
           </div>
         )}
 
+        {/* Items agrupados por severidade */}
         {(['high', 'medium', 'low'] as Severity[]).map(sev => {
           const items = bySeverity[sev]
           if (items.length === 0) return null
@@ -152,6 +246,11 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                 {items.map(item => {
                   const isChecked = item.checked_at !== null
                   const isPending = pendingIds.has(item.id)
+                  const cleanName = item.node_name.replace(/^[\s–\-]+/, '')
+                  const figmaUrl = hasFigmaLink
+                    ? `https://www.figma.com/design/${review.file_key}?node-id=${encodeURIComponent(item.node_id)}`
+                    : null
+
                   return (
                     <div
                       key={item.id}
@@ -161,11 +260,12 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                         isPending && 'opacity-60',
                       )}
                     >
+                      {/* Checkbox */}
                       <button
                         onClick={() => handleToggle(item)}
                         disabled={isPending}
                         className={cn(
-                          'w-5 h-5 mt-0.5 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors',
+                          'w-5 h-5 mt-0.5 rounded shrink-0 flex items-center justify-center border-2 transition-colors',
                           isChecked
                             ? 'bg-green-500 border-green-500 text-white'
                             : 'border-gray-300 hover:border-green-400',
@@ -174,40 +274,40 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                         {isChecked && <span className="text-[10px] leading-none">✓</span>}
                       </button>
 
+                      {/* Conteúdo */}
                       <div className="flex-1 min-w-0">
+                        {/* Linha 1: nome + tipo + status + link Figma */}
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-mono text-gray-400">
-                            {DIFF_ICONS[item.diff_type] ?? '•'}
-                          </span>
                           <span className={cn(
-                            'text-sm font-medium text-gray-800',
+                            'text-sm font-semibold text-gray-900',
                             isChecked && 'line-through text-gray-400',
                           )}>
-                            {item.node_name}
+                            {cleanName}
                           </span>
-                          <span className="text-xs text-gray-400 uppercase tracking-wide">
-                            {item.diff_type.toLowerCase()}
+                          <span className="text-xs text-gray-500">
+                            {diffLabel(item.diff_type)}
                           </span>
                           {isChecked && (
-                            <span className="text-xs text-green-600 font-medium">Revisado</span>
+                            <span className="text-xs text-green-600 font-medium">· Revisado</span>
+                          )}
+                          {figmaUrl && (
+                            <a
+                              href={figmaUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-auto text-xs text-gray-400 hover:text-blue-500 transition-colors whitespace-nowrap"
+                            >
+                              ↗ Ver no Figma
+                            </a>
                           )}
                         </div>
 
+                        {/* Linha 2: valores before → after */}
                         {(item.before_value !== null || item.after_value !== null) && (
-                          <div className="flex items-center gap-1.5 mt-1 text-xs font-mono">
-                            {item.before_value !== null && (
-                              <span className="bg-red-50 text-red-600 px-1.5 py-0.5 rounded">
-                                {String(item.before_value).slice(0, 40)}
-                              </span>
-                            )}
-                            {item.before_value !== null && item.after_value !== null && (
-                              <span className="text-gray-300">→</span>
-                            )}
-                            {item.after_value !== null && (
-                              <span className="bg-green-50 text-green-600 px-1.5 py-0.5 rounded">
-                                {String(item.after_value).slice(0, 40)}
-                              </span>
-                            )}
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            <ValueBadge value={item.before_value} variant="before" />
+                            <span className="text-gray-300 text-xs">→</span>
+                            <ValueBadge value={item.after_value} variant="after" />
                           </div>
                         )}
                       </div>

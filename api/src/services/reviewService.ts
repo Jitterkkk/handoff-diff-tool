@@ -153,11 +153,12 @@ export async function getReview(reviewId: string): Promise<ReviewDetail | null> 
 }
 
 export async function getPublicReview(reviewId: string): Promise<PublicReview | null> {
-  type ReviewWithUser = DbReview & { published_by_name: string }
+  type ReviewWithUser = DbReview & { published_by_name: string; figma_file_key: string }
   const [review] = await sql<ReviewWithUser[]>`
-    SELECT r.*, u.name AS published_by_name
+    SELECT r.*, u.name AS published_by_name, f.figma_file_key
     FROM reviews r
     JOIN users u ON u.id = r.published_by
+    JOIN files f ON f.id = r.file_id
     WHERE r.id = ${reviewId}
   `
   if (!review) return null
@@ -171,6 +172,7 @@ export async function getPublicReview(reviewId: string): Promise<PublicReview | 
 
   return {
     id: review.id,
+    file_key: review.figma_file_key,
     frame_name: review.frame_name,
     description: review.description,
     status: review.status,
