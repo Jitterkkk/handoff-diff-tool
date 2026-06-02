@@ -88,6 +88,38 @@ export function ValueBadge({ value, variant }: ValueBadgeProps) {
   )
 }
 
+// ── FigmaLink — botão ativo ou desabilitado conforme o fileKey ───────────────
+interface FigmaLinkProps {
+  fileKey?: string
+  nodeId: string
+}
+
+export function FigmaLink({ fileKey, nodeId }: FigmaLinkProps) {
+  if (!fileKey) return null
+
+  if (fileKey.startsWith('local-')) {
+    return (
+      <span
+        title="Arquivo local — link do Figma não disponível"
+        className="text-xs text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed whitespace-nowrap shrink-0"
+      >
+        ↗ Figma (local)
+      </span>
+    )
+  }
+
+  return (
+    <a
+      href={`https://www.figma.com/design/${fileKey}?node-id=${encodeURIComponent(nodeId)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-xs text-blue-500 dark:text-blue-400 hover:underline whitespace-nowrap shrink-0"
+    >
+      ↗ Figma
+    </a>
+  )
+}
+
 // ── BeforeAfterPreview — visualização rica por tipo de diff ───────────────────
 interface PreviewProps {
   diffType: string

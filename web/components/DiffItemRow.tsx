@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { cn } from '@/lib/utils'
-import { diffLabel, BeforeAfterPreview } from '@/lib/diffFormatters'
+import { diffLabel, BeforeAfterPreview, FigmaLink } from '@/lib/diffFormatters'
 import type { ReviewItem } from '@/lib/types'
 import { toggleReviewItem } from '@/app/actions'
 
@@ -16,9 +16,6 @@ export function DiffItemRow({ item, reviewId, fileKey }: Props) {
   const [isPending, startTransition] = useTransition()
   const isChecked = item.checked_at !== null
 
-  const figmaUrl = fileKey && !fileKey.startsWith('local-')
-    ? `https://www.figma.com/design/${fileKey}?node-id=${encodeURIComponent(item.node_id)}`
-    : null
 
   function handleToggle() {
     startTransition(async () => {
@@ -68,16 +65,7 @@ export function DiffItemRow({ item, reviewId, fileKey }: Props) {
               <span className="text-xs text-green-600 dark:text-green-400 font-medium">· Revisado</span>
             )}
           </div>
-          {figmaUrl && (
-            <a
-              href={figmaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-500 dark:text-blue-400 hover:underline whitespace-nowrap shrink-0"
-            >
-              ↗ Figma
-            </a>
-          )}
+          <FigmaLink fileKey={fileKey} nodeId={item.node_id} />
         </div>
 
         <BeforeAfterPreview

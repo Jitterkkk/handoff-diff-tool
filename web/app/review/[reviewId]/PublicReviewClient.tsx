@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { PublicReview, PublicReviewItem, ReviewStatus, Severity } from '@/lib/types'
 import { StatusBadge } from '@/components/StatusBadge'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { diffLabel, BeforeAfterPreview } from '@/lib/diffFormatters'
+import { diffLabel, BeforeAfterPreview, FigmaLink } from '@/lib/diffFormatters'
 import { cn, timeAgo } from '@/lib/utils'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://handoff-api.onrender.com'
@@ -93,7 +93,7 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
   const bySeverity: Record<Severity, PublicReviewItem[]> = { high: [], medium: [], low: [] }
   for (const item of review.items) bySeverity[item.severity].push(item)
 
-  const hasFigmaLink = review.file_key && !review.file_key.startsWith('local-')
+  const fileKey = review.file_key
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -165,9 +165,6 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                   const isChecked = item.checked_at !== null
                   const isPending = pendingIds.has(item.id)
                   const cleanName = item.node_name.replace(/^[\s–\-]+/, '')
-                  const figmaUrl = hasFigmaLink
-                    ? `https://www.figma.com/design/${review.file_key}?node-id=${encodeURIComponent(item.node_id)}`
-                    : null
 
                   return (
                     <div
@@ -214,16 +211,7 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                               <span className="text-xs text-green-600 dark:text-green-400 font-medium">· Revisado</span>
                             )}
                           </div>
-                          {figmaUrl && (
-                            <a
-                              href={figmaUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-500 dark:text-blue-400 hover:underline whitespace-nowrap shrink-0"
-                            >
-                              ↗ Figma
-                            </a>
-                          )}
+                          <FigmaLink fileKey={fileKey} nodeId={item.node_id} />
                         </div>
 
                         <BeforeAfterPreview
