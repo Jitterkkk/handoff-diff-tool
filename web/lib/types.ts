@@ -30,3 +30,24 @@ export interface ReviewItem {
 export interface ReviewDetail extends ReviewSummary {
   items: ReviewItem[]
 }
+
+export interface PublicReviewItem {
+  id: string
+  node_id: string
+  node_name: string
+  diff_type: string
+  severity: Severity
+  before_value: unknown
+  after_value: unknown
+  checked_at: string | null
+}
+
+export interface PublicReview {
+  id: string
+  frame_name: string
+  description: string
+  status: ReviewStatus
+  published_at: string
+  published_by_name: string
+  items: PublicReviewItem[]
+}

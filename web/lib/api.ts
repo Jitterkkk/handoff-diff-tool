@@ -1,4 +1,4 @@
-import type { ReviewSummary, ReviewDetail } from './types'
+import type { ReviewSummary, ReviewDetail, PublicReview } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://handoff-api.onrender.com'
 
@@ -36,6 +36,15 @@ export async function getReviews(opts: ApiOptions, fileKey?: string): Promise<Re
 
 export async function getReviewDetail(opts: ApiOptions, reviewId: string): Promise<ReviewDetail> {
   return request<ReviewDetail>(`/api/reviews/${reviewId}`, opts)
+}
+
+export async function getPublicReview(reviewId: string): Promise<PublicReview> {
+  const res = await fetch(`${API_BASE}/api/reviews/${reviewId}/public`, { cache: 'no-store' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText })) as { error?: string }
+    throw new Error(err.error ?? `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<PublicReview>
 }
 
 export async function checkItem(
