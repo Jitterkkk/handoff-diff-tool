@@ -11,11 +11,11 @@ interface Props {
 
 export function ReviewCard({ review }: Props) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 flex flex-col gap-4 hover:border-blue-200 hover:shadow-sm transition-all">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 flex flex-col gap-4 hover:border-blue-200 dark:hover:border-blue-700 hover:shadow-sm transition-all">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold text-gray-900 truncate text-sm">{review.frame_name}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-sm">{review.frame_name}</h3>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
             {review.published_by_name} • {timeAgo(review.published_at)}
           </p>
         </div>
@@ -27,11 +27,11 @@ export function ReviewCard({ review }: Props) {
       <div className="flex items-center gap-3">
         <Link
           href={`/dashboard/reviews/${review.id}`}
-          className="flex-1 text-center text-xs font-semibold text-blue-600 hover:text-blue-700 py-2 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors"
+          className="flex-1 text-center text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 py-2 border border-blue-100 dark:border-blue-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
         >
           Ver detalhes →
         </Link>
-        <ShareButton reviewId={review.id} className="py-2 px-3 border border-gray-100 rounded-lg hover:bg-gray-50" />
+        <ShareButton reviewId={review.id} className="py-2 px-3 border border-gray-100 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700" />
       </div>
     </div>
   )

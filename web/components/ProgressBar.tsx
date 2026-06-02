@@ -11,13 +11,13 @@ export function ProgressBar({ checked, total, size = 'sm' }: Props) {
 
   return (
     <div className="w-full">
-      <div className={cn('w-full bg-gray-100 rounded-full overflow-hidden', size === 'sm' ? 'h-1.5' : 'h-2.5')}>
+      <div className={cn('w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden', size === 'sm' ? 'h-1.5' : 'h-2.5')}>
         <div
           className="bg-green-500 h-full rounded-full transition-all duration-300"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="text-xs text-gray-400 mt-1">{checked} de {total} revisados</p>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{checked} de {total} revisados</p>
     </div>
   )
 }

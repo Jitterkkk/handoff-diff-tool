@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { ThemeToggle } from './ThemeToggle'
 
 const navItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: '◻' },
@@ -68,13 +69,16 @@ export function Sidebar({ userName }: Props) {
             </div>
             <span className="text-xs text-gray-300 truncate">{userName}</span>
           </div>
-          <button
-            onClick={handleLogout}
-            className="text-xs text-gray-500 hover:text-red-400 transition-colors flex-shrink-0"
-            title="Sair"
-          >
-            ⎋
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <ThemeToggle className="text-sm text-gray-500 hover:text-gray-300 transition-colors" />
+            <button
+              onClick={handleLogout}
+              className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+              title="Sair"
+            >
+              ⎋
+            </button>
+          </div>
         </div>
       </div>
     </aside>

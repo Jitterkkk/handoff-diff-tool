@@ -15,9 +15,9 @@ const SEVERITY_LABELS: Record<Severity, string> = {
   low: 'Baixa prioridade',
 }
 const SEVERITY_COLORS: Record<Severity, string> = {
-  high: 'text-red-600',
-  medium: 'text-yellow-600',
-  low: 'text-gray-500',
+  high: 'text-red-600 dark:text-red-400',
+  medium: 'text-yellow-600 dark:text-yellow-400',
+  low: 'text-gray-500 dark:text-gray-500',
 }
 
 interface Props {
@@ -62,10 +62,10 @@ export function ReviewDetailClient({ initialReview, reviewId }: Props) {
   return (
     <>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-gray-400 mb-6">
-        <Link href="/dashboard/reviews" className="hover:text-gray-600">Reviews</Link>
+      <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-600 mb-6">
+        <Link href="/dashboard/reviews" className="hover:text-gray-600 dark:hover:text-gray-400">Reviews</Link>
         <span>/</span>
-        <span className="text-gray-700">{review.frame_name}</span>
+        <span className="text-gray-700 dark:text-gray-300">{review.frame_name}</span>
         {justUpdated && (
           <span className="ml-auto text-green-500 text-xs font-medium animate-pulse">
             ✓ Atualizado agora
@@ -74,25 +74,25 @@ export function ReviewDetailClient({ initialReview, reviewId }: Props) {
       </div>
 
       {/* Header card */}
-      <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
-          <h1 className="text-xl font-bold text-gray-900">{review.frame_name}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{review.frame_name}</h1>
           <div className="flex items-center gap-3 shrink-0">
             <ShareButton reviewId={reviewId} />
             <StatusBadge status={review.status} />
           </div>
         </div>
-        <p className="text-sm text-gray-500 mb-4">
-          Publicado por <strong>{review.published_by_name}</strong> {timeAgo(review.published_at)}
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Publicado por <strong className="text-gray-700 dark:text-gray-300">{review.published_by_name}</strong> {timeAgo(review.published_at)}
         </p>
         <ProgressBar checked={review.checked_items} total={review.total_items} size="md" />
       </div>
 
       {/* Done banner */}
       {review.status === 'done' && (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-6 py-4 mb-6 flex items-center gap-3">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-6 py-4 mb-6 flex items-center gap-3">
           <span className="text-green-500 text-xl">✓</span>
-          <p className="text-sm text-green-700 font-medium">
+          <p className="text-sm text-green-700 dark:text-green-400 font-medium">
             Revisão completa! Todos os itens foram revisados.
           </p>
         </div>
