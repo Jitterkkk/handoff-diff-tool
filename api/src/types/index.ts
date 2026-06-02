@@ -62,3 +62,24 @@ export interface ReviewDetail extends ReviewSummary {
 }
 
 export type ReviewStatus = 'pending' | 'in_progress' | 'done'
+
+export interface PublicReviewItem {
+  id: string
+  node_id: string
+  node_name: string
+  diff_type: string
+  severity: 'high' | 'medium' | 'low'
+  before_value: unknown
+  after_value: unknown
+  checked_at: Date | null
+}
+
+export interface PublicReview {
+  id: string
+  frame_name: string
+  description: string
+  status: ReviewStatus
+  published_at: Date
+  published_by_name: string
+  items: PublicReviewItem[]
+}

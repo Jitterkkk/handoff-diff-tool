@@ -1,6 +1,6 @@
 import { sql } from '../db/index.js'
 import { publishEvent } from '../redis/index.js'
-import type { DbUser, DbReview, DbReviewItem, ReviewSummary, ReviewDetail, ReviewStatus } from '../types/index.js'
+import type { DbUser, DbReview, DbReviewItem, ReviewSummary, ReviewDetail, ReviewStatus, PublicReview, PublicReviewItem } from '../types/index.js'
 import type { PublishReviewBody, DiffResult } from '../schemas/review.js'
 
 async function upsertUser(figmaUserId: string, name: string, email?: string, avatarUrl?: string): Promise<DbUser> {
@@ -149,6 +149,86 @@ export async function getReview(reviewId: string): Promise<ReviewDetail | null> 
     total_items: items.length,
     checked_items: items.filter(i => i.checked_at !== null).length,
     items,
+  }
+}
+
+export async function getPublicReview(reviewId: string): Promise<PublicReview | null> {
+  type ReviewWithUser = DbReview & { published_by_name: string }
+  const [review] = await sql<ReviewWithUser[]>`
+    SELECT r.*, u.name AS published_by_name
+    FROM reviews r
+    JOIN users u ON u.id = r.published_by
+    WHERE r.id = ${reviewId}
+  `
+  if (!review) return null
+
+  const items = await sql<DbReviewItem[]>`
+    SELECT id, node_id, node_name, diff_type, severity, before_value, after_value, checked_at
+    FROM review_items
+    WHERE review_id = ${reviewId}
+    ORDER BY created_at ASC
+  `
+
+  return {
+    id: review.id,
+    frame_name: review.frame_name,
+    description: review.description,
+    status: review.status,
+    published_at: review.published_at,
+    published_by_name: review.published_by_name,
+    items: items.map(i => ({
+      id: i.id,
+      node_id: i.node_id,
+      node_name: i.node_name,
+      diff_type: i.diff_type,
+      severity: i.severity,
+      before_value: i.before_value,
+      after_value: i.after_value,
+      checked_at: i.checked_at,
+    })),
+  }
+}
+
+export async function patchPublicReviewItem(
+  reviewId: string,
+  itemId: string,
+  checked: boolean,
+): Promise<PublicReviewItem | null> {
+  const updated = await sql<DbReviewItem[]>`
+    UPDATE review_items
+    SET checked_at = ${checked ? sql`NOW()` : sql`NULL`}
+    WHERE id = ${itemId} AND review_id = ${reviewId}
+    RETURNING *
+  `
+  if (updated.length === 0) return null
+
+  const allItems = await sql<DbReviewItem[]>`SELECT * FROM review_items WHERE review_id = ${reviewId}`
+  const newStatus = computeStatus(allItems)
+  await sql`UPDATE reviews SET status = ${newStatus}, updated_at = NOW() WHERE id = ${reviewId}`
+
+  const [fileRow] = await sql<{ figma_file_key: string }[]>`
+    SELECT f.figma_file_key FROM reviews r JOIN files f ON f.id = r.file_id WHERE r.id = ${reviewId}
+  `
+  if (fileRow) {
+    await publishEvent(`reviews:${fileRow.figma_file_key}`, {
+      type: 'REVIEW_ITEM_UPDATED',
+      reviewId,
+      itemId,
+      checked,
+      newStatus,
+    }).catch(() => {})
+  }
+
+  const item = updated[0]
+  return {
+    id: item.id,
+    node_id: item.node_id,
+    node_name: item.node_name,
+    diff_type: item.diff_type,
+    severity: item.severity,
+    before_value: item.before_value,
+    after_value: item.after_value,
+    checked_at: item.checked_at,
   }
 }
 
