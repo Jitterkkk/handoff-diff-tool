@@ -5,7 +5,7 @@
   "main": "dist/code.js",
   "ui": "dist/index.html",
   "editorType": ["figma"],
-  "permissions": ["currentuser"],
+  "permissions": ["currentuser", "filekey"],
   "networkAccess": {
     "allowedDomains": ["https://handoff-api.onrender.com"]
   }
