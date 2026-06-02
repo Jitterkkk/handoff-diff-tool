@@ -84,6 +84,7 @@ export async function publishReview(body: PublishReviewBody): Promise<ReviewDeta
 
   return {
     id: review.id,
+    file_key: fileKey,
     frame_id: review.frame_id,
     frame_name: review.frame_name,
     status: review.status,
@@ -124,11 +125,12 @@ export async function listReviews(fileKey?: string, status?: string): Promise<Re
 }
 
 export async function getReview(reviewId: string): Promise<ReviewDetail | null> {
-  type ReviewWithUser = DbReview & { published_by_name: string }
+  type ReviewWithUser = DbReview & { published_by_name: string; figma_file_key: string }
   const [review] = await sql<ReviewWithUser[]>`
-    SELECT r.*, u.name AS published_by_name
+    SELECT r.*, u.name AS published_by_name, f.figma_file_key
     FROM reviews r
     JOIN users u ON u.id = r.published_by
+    JOIN files f ON f.id = r.file_id
     WHERE r.id = ${reviewId}
   `
   if (!review) return null
@@ -139,6 +141,7 @@ export async function getReview(reviewId: string): Promise<ReviewDetail | null> 
 
   return {
     id: review.id,
+    file_key: review.figma_file_key,
     frame_id: review.frame_id,
     frame_name: review.frame_name,
     status: review.status as ReviewStatus,

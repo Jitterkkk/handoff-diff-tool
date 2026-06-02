@@ -28,6 +28,7 @@ export interface ReviewItem {
 }
 
 export interface ReviewDetail extends ReviewSummary {
+  file_key: string
   items: ReviewItem[]
 }
 

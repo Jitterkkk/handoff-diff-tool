@@ -109,7 +109,7 @@ export function ReviewDetailClient({ initialReview, reviewId }: Props) {
             </h2>
             <div className="flex flex-col gap-2">
               {items.map(item => (
-                <DiffItemRow key={item.id} item={item} reviewId={reviewId} />
+                <DiffItemRow key={item.id} item={item} reviewId={reviewId} fileKey={review.file_key} />
               ))}
             </div>
           </div>
