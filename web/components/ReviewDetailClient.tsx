@@ -6,6 +6,7 @@ import type { ReviewDetail, ReviewItem, Severity } from '@/lib/types'
 import { StatusBadge } from './StatusBadge'
 import { ProgressBar } from './ProgressBar'
 import { DiffItemRow } from './DiffItemRow'
+import { ShareButton } from './ShareButton'
 import { timeAgo } from '@/lib/utils'
 
 const SEVERITY_LABELS: Record<Severity, string> = {
@@ -76,7 +77,10 @@ export function ReviewDetailClient({ initialReview, reviewId }: Props) {
       <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <h1 className="text-xl font-bold text-gray-900">{review.frame_name}</h1>
-          <StatusBadge status={review.status} />
+          <div className="flex items-center gap-3 shrink-0">
+            <ShareButton reviewId={reviewId} />
+            <StatusBadge status={review.status} />
+          </div>
         </div>
         <p className="text-sm text-gray-500 mb-4">
           Publicado por <strong>{review.published_by_name}</strong> {timeAgo(review.published_at)}

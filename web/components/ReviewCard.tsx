@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { ReviewSummary } from '@/lib/types'
 import { StatusBadge } from './StatusBadge'
 import { ProgressBar } from './ProgressBar'
+import { ShareButton } from './ShareButton'
 import { timeAgo } from '@/lib/utils'
 
 interface Props {
@@ -23,12 +24,15 @@ export function ReviewCard({ review }: Props) {
 
       <ProgressBar checked={review.checked_items} total={review.total_items} />
 
-      <Link
-        href={`/dashboard/reviews/${review.id}`}
-        className="text-center text-xs font-semibold text-blue-600 hover:text-blue-700 py-2 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors"
-      >
-        Ver detalhes →
-      </Link>
+      <div className="flex items-center gap-3">
+        <Link
+          href={`/dashboard/reviews/${review.id}`}
+          className="flex-1 text-center text-xs font-semibold text-blue-600 hover:text-blue-700 py-2 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          Ver detalhes →
+        </Link>
+        <ShareButton reviewId={review.id} className="py-2 px-3 border border-gray-100 rounded-lg hover:bg-gray-50" />
+      </div>
     </div>
   )
 }
