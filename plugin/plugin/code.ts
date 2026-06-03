@@ -95,6 +95,11 @@ async function notifyCurrentFrames(withBaseline = false): Promise<void> {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
+function extractFileKey(url: string): string | null {
+  const match = url.match(/figma\.com\/(file|design)\/([^/?#]+)/);
+  return match ? match[2] : null;
+}
+
 void (async () => {
   authToken = await authenticateUser();
 
@@ -161,7 +166,8 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         let synced = false;
         if (authToken !== null) {
           try {
-            const fileKey = figma.fileKey ?? 'local-' + figma.root.name;
+            const extracted = msg.figmaFileUrl ? extractFileKey(msg.figmaFileUrl) : null;
+            const fileKey = extracted ?? figma.fileKey ?? figma.root.id;
             await apiClient.wakeUp();
             const backendReview = await apiClient.publishReview(authToken, {
               fileKey,
@@ -206,12 +212,18 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
     case 'GET_SETTINGS': {
       const settings = await loadSettings();
-      send({ type: 'SETTINGS', includePosition: settings.includePosition });
+      const figmaFileUrl = (await figma.clientStorage.getAsync('figmaFileUrl') as string | undefined) ?? '';
+      send({ type: 'SETTINGS', includePosition: settings.includePosition, figmaFileUrl });
       break;
     }
 
     case 'SAVE_SETTINGS': {
       await saveSettings({ includePosition: msg.includePosition });
+      break;
+    }
+
+    case 'SAVE_FIGMA_URL': {
+      await figma.clientStorage.setAsync('figmaFileUrl', msg.figmaFileUrl);
       break;
     }
   }

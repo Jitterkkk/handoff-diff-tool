@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useCallback } from 'react';
+import { useEffect, useReducer, useCallback, useState } from 'react';
 import type {
   FrameMeta,
   PluginToUIMessage,
@@ -77,6 +77,7 @@ function post(msg: UIToPluginMessage): void {
 
 export function App() {
   const [state, dispatch] = useReducer(reducer, initial);
+  const [figmaFileUrl, setFigmaFileUrl] = useState('');
 
   // Init
   useEffect(() => {
@@ -100,6 +101,9 @@ export function App() {
         case 'REVIEW_PUBLISHED':
           dispatch({ type: 'PUBLISH_SUCCESS', synced: msg.synced ?? false });
           break;
+        case 'SETTINGS':
+          if (msg.figmaFileUrl) setFigmaFileUrl(msg.figmaFileUrl);
+          break;
         case 'AUTH_STATUS':
           dispatch({ type: 'AUTH_STATUS', authenticated: msg.authenticated, userName: msg.userName });
           break;
@@ -122,8 +126,14 @@ export function App() {
 
   const handlePublish = useCallback(() => {
     dispatch({ type: 'PUBLISH_START' });
-    post({ type: 'PUBLISH_REVIEW', description: '' });
-  }, []);
+    post({ type: 'PUBLISH_REVIEW', description: '', figmaFileUrl: figmaFileUrl || undefined });
+  }, [figmaFileUrl]);
+
+  function handleUrlChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setFigmaFileUrl(val);
+    post({ type: 'SAVE_FIGMA_URL', figmaFileUrl: val });
+  }
 
   return (
     <div style={styles.root}>
@@ -145,6 +155,16 @@ export function App() {
             userName={state.userName}
           />
           <div style={styles.content}>
+            <div style={styles.urlField}>
+              <label style={styles.urlLabel}>URL do arquivo (opcional)</label>
+              <input
+                style={styles.urlInput}
+                type="url"
+                placeholder="https://www.figma.com/design/ABC123/..."
+                value={figmaFileUrl}
+                onChange={handleUrlChange}
+              />
+            </div>
             <button style={styles.publishBtn} onClick={handlePublish}>
               Publicar review
             </button>
@@ -247,6 +267,30 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     color: '#888',
     margin: 0,
+  },
+  urlField: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  urlLabel: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#888',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+  },
+  urlInput: {
+    width: '100%',
+    padding: '7px 10px',
+    fontSize: 11,
+    color: '#333',
+    background: '#f7f7f7',
+    border: '1px solid #e0e0e0',
+    borderRadius: 6,
+    outline: 'none',
+    boxSizing: 'border-box' as const,
   },
   publishBtn: {
     width: '100%',

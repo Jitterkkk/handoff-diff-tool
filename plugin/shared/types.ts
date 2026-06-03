@@ -136,11 +136,12 @@ export interface ReviewSummary {
 // UI → Plugin
 export type UIToPluginMessage =
   | { type: 'GET_CURRENT_FRAME' }
-  | { type: 'PUBLISH_REVIEW'; description: string }
+  | { type: 'PUBLISH_REVIEW'; description: string; figmaFileUrl?: string }
   | { type: 'ZOOM_TO_NODE'; nodeId: string }
   | { type: 'CLEAR_HIGHLIGHTS' }
   | { type: 'GET_SETTINGS' }
-  | { type: 'SAVE_SETTINGS'; includePosition: boolean };
+  | { type: 'SAVE_SETTINGS'; includePosition: boolean }
+  | { type: 'SAVE_FIGMA_URL'; figmaFileUrl: string };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -150,5 +151,5 @@ export type PluginToUIMessage =
   | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
   | { type: 'REVIEW_PUBLISHED'; review: FrameReview; frames: FrameMeta[]; synced: boolean }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
-  | { type: 'SETTINGS'; includePosition: boolean }
+  | { type: 'SETTINGS'; includePosition: boolean; figmaFileUrl?: string }
   | { type: 'ERROR'; message: string };
