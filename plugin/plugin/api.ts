@@ -45,7 +45,9 @@ async function request<T>(
     .then(async (res) => {
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error('API ' + res.status + ' at ' + path + ': ' + text);
+        const error = new Error('API ' + res.status + ' at ' + path + ': ' + text);
+        (error as { status?: number }).status = res.status;
+        throw error;
       }
       return res.json() as Promise<T>;
     });

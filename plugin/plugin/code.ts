@@ -2,7 +2,7 @@
 
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
-import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, saveAuthToken, loadAuthToken } from './storage';
+import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, saveAuthToken, loadAuthToken, clearAuthToken } from './storage';
 import { createHighlight, clearHighlights } from './highlight';
 import { refreshBadge } from './badge';
 import { apiClient } from './api';
@@ -166,26 +166,45 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
         let synced = false;
         if (authToken !== null) {
+          const extracted = msg.figmaFileUrl ? extractFileKey(msg.figmaFileUrl) : null;
+          const fileKey = extracted ?? figma.fileKey ?? figma.root.id;
+          const publishPayload = {
+            fileKey,
+            frameName: frame.name,
+            frameId: frame.id,
+            description: msg.description,
+            publishedByUserId: figma.currentUser !== null ? (figma.currentUser.id ?? figma.currentUser.name) : 'unknown',
+            publishedByName: figma.currentUser !== null ? figma.currentUser.name : 'Designer',
+            items: diffs,
+          };
           try {
-            const extracted = msg.figmaFileUrl ? extractFileKey(msg.figmaFileUrl) : null;
-            const fileKey = extracted ?? figma.fileKey ?? figma.root.id;
             await apiClient.wakeUp();
-            const backendReview = await apiClient.publishReview(authToken, {
-              fileKey,
-              frameName: frame.name,
-              frameId: frame.id,
-              description: msg.description,
-              publishedByUserId: figma.currentUser !== null ? (figma.currentUser.id ?? figma.currentUser.name) : 'unknown',
-              publishedByName: figma.currentUser !== null ? figma.currentUser.name : 'Designer',
-              items: diffs,
-            });
+            const backendReview = await apiClient.publishReview(authToken, publishPayload);
             review.backendReviewId = backendReview.id;
             await saveReview(review);
             synced = true;
           } catch (err: unknown) {
-            console.error('[handoff] publishReview ERRO:', String(err));
-            console.error('[handoff] publishReview STATUS:', (err as { status?: unknown })?.status);
-            synced = false;
+            const status = (err as { status?: number })?.status;
+            if (status === 401) {
+              await clearAuthToken();
+              authToken = await authenticateUser();
+              if (authToken !== null) {
+                try {
+                  const backendReview = await apiClient.publishReview(authToken, publishPayload);
+                  review.backendReviewId = backendReview.id;
+                  await saveReview(review);
+                  synced = true;
+                } catch {
+                  synced = false;
+                }
+              }
+            } else {
+              synced = false;
+            }
+            if (!synced) {
+              console.error('[handoff] publishReview ERRO:', String(err));
+              console.error('[handoff] publishReview STATUS:', status ?? 'desconhecido');
+            }
           }
         }
 
