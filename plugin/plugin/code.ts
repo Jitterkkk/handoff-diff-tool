@@ -65,9 +65,15 @@ async function captureBaselines(frames: FrameNode[]): Promise<void> {
   await Promise.all(
     frames.map(async (frame) => {
       capturingFrameIds.add(frame.id);
-      const snapshot = takeSnapshot(frame);
-      await saveToHistory(frame.id, frame.name, snapshot);
-      capturingFrameIds.delete(frame.id);
+      try {
+        const snapshot = takeSnapshot(frame);
+        await saveToHistory(frame.id, frame.name, snapshot);
+      } catch (err) {
+        console.error('[handoff] saveToHistory falhou:', String(err));
+        send({ type: 'BASELINE_ERROR', frameId: frame.id, message: 'Não foi possível salvar o histórico deste frame' });
+      } finally {
+        capturingFrameIds.delete(frame.id);
+      }
     }),
   );
 }

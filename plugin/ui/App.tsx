@@ -81,6 +81,7 @@ export function App() {
   const [publishStatus, setPublishStatus] = useState('');
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetFeedback, setResetFeedback] = useState('');
+  const [baselineError, setBaselineError] = useState('');
   const saveUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Init
@@ -115,6 +116,10 @@ export function App() {
         case 'FRAME_RESET':
           setResetFeedback('Baseline resetado — próxima publicação vai capturar o estado atual como referência');
           setTimeout(() => setResetFeedback(''), 6000);
+          break;
+        case 'BASELINE_ERROR':
+          setBaselineError(msg.message);
+          setTimeout(() => setBaselineError(''), 5000);
           break;
         case 'SETTINGS':
           if (msg.figmaFileUrl) setFigmaFileUrl(msg.figmaFileUrl);
@@ -192,6 +197,9 @@ export function App() {
             authStatus={state.authStatus}
             userName={state.userName}
           />
+          {baselineError && (
+            <p style={styles.baselineError}>{baselineError}</p>
+          )}
           <div style={styles.content}>
             <div style={styles.urlField}>
               <label style={styles.urlLabel}>URL do arquivo (opcional)</label>
@@ -430,6 +438,15 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#18a0fb',
     textDecoration: 'none',
     fontWeight: 600,
+  },
+  baselineError: {
+    fontSize: 10,
+    color: '#ef4444',
+    margin: '0 16px',
+    padding: '6px 10px',
+    background: '#fef2f2',
+    borderRadius: 6,
+    lineHeight: 1.4,
   },
   resetBtn: {
     background: 'none',

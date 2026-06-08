@@ -156,4 +156,5 @@ export type PluginToUIMessage =
   | { type: 'SETTINGS'; includePosition: boolean; figmaFileUrl?: string }
   | { type: 'PUBLISH_STATUS'; message: string }
   | { type: 'FRAME_RESET'; frameId: string }
+  | { type: 'BASELINE_ERROR'; frameId: string; message: string }
   | { type: 'ERROR'; message: string };
