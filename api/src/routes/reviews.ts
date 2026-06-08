@@ -9,6 +9,8 @@ import {
   ReviewItemParamsSchema,
 } from '../schemas/review.js'
 import { publishReview, listReviews, getReview, patchReviewItem, getPublicReview, patchPublicReviewItem, deleteReview, archiveReview } from '../services/reviewService.js'
+import { redis } from '../redis/index.js'
+import { rateLimit } from '../middleware/rateLimit.js'
 
 export async function reviewsRoutes(app: FastifyInstance) {
   app.post('/api/reviews', {
@@ -71,6 +73,12 @@ export async function reviewsRoutes(app: FastifyInstance) {
 
   // Rotas públicas — sem autenticação
   app.get<{ Params: z.infer<typeof ReviewParamsSchema> }>('/api/reviews/:reviewId/public', async (req, reply) => {
+    const rawForwarded = req.headers['x-forwarded-for']
+    const ip = req.ip || (Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded) || 'unknown'
+    try {
+      const { allowed } = await rateLimit(redis, ip, 'public-review-get', 60)
+      if (!allowed) return reply.code(429).send({ error: 'Too many requests. Try again in a minute.' })
+    } catch { /* Redis unavailable — allow */ }
     const { reviewId } = ReviewParamsSchema.parse(req.params)
     const review = await getPublicReview(reviewId)
     if (!review) return reply.code(404).send({ error: 'Review not found' })
@@ -78,6 +86,12 @@ export async function reviewsRoutes(app: FastifyInstance) {
   })
 
   app.patch<{ Params: z.infer<typeof ReviewItemParamsSchema> }>('/api/reviews/:reviewId/items/:itemId/public', async (req, reply) => {
+    const rawForwarded = req.headers['x-forwarded-for']
+    const ip = req.ip || (Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded) || 'unknown'
+    try {
+      const { allowed } = await rateLimit(redis, ip, 'public-review-patch', 30)
+      if (!allowed) return reply.code(429).send({ error: 'Too many requests. Try again in a minute.' })
+    } catch { /* Redis unavailable — allow */ }
     const { reviewId, itemId } = ReviewItemParamsSchema.parse(req.params)
     const body = PatchPublicReviewItemBodySchema.parse(req.body)
     const item = await patchPublicReviewItem(reviewId, itemId, body.checked)
