@@ -29,8 +29,11 @@ async function request<T>(
   return res.json() as Promise<T>
 }
 
-export async function getReviews(opts: ApiOptions, fileKey?: string): Promise<ReviewSummary[]> {
-  const qs = fileKey ? `?fileKey=${encodeURIComponent(fileKey)}` : ''
+export async function getReviews(opts: ApiOptions, fileKey?: string, status?: string): Promise<ReviewSummary[]> {
+  const params = new URLSearchParams()
+  if (fileKey) params.set('fileKey', fileKey)
+  if (status) params.set('status', status)
+  const qs = params.size > 0 ? `?${params.toString()}` : ''
   return request<ReviewSummary[]>(`/api/reviews${qs}`, opts)
 }
 

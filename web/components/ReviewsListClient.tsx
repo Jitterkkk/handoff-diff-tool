@@ -25,14 +25,15 @@ export function ReviewsListClient({ initialReviews, initialStatus }: Props) {
   const fetchLatest = useCallback(async () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     try {
-      const res = await fetch('/api/reviews')
+      const qs = status !== 'all' ? `?status=${status}` : ''
+      const res = await fetch(`/api/reviews${qs}`)
       if (!res.ok) return
       const data: ReviewSummary[] = await res.json()
       setReviews(data)
       const fresh = data.filter(r => !initialIds.current.has(r.id)).length
       setNewCount(fresh)
     } catch {}
-  }, [])
+  }, [status])
 
   useEffect(() => {
     const interval = setInterval(fetchLatest, 30000)
