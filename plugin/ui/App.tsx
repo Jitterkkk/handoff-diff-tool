@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useCallback, useState } from 'react';
+import { useEffect, useReducer, useCallback, useState, useRef } from 'react';
 import type {
   FrameMeta,
   PluginToUIMessage,
@@ -81,6 +81,7 @@ export function App() {
   const [publishStatus, setPublishStatus] = useState('');
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetFeedback, setResetFeedback] = useState('');
+  const saveUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Init
   useEffect(() => {
@@ -131,6 +132,12 @@ export function App() {
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (saveUrlTimer.current) clearTimeout(saveUrlTimer.current);
+    };
+  }, []);
+
   // Auto-reset after published state
   useEffect(() => {
     if (state.status !== 'published') return;
@@ -160,7 +167,10 @@ export function App() {
   function handleUrlChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
     setFigmaFileUrl(val);
-    post({ type: 'SAVE_FIGMA_URL', figmaFileUrl: val });
+    if (saveUrlTimer.current) clearTimeout(saveUrlTimer.current);
+    saveUrlTimer.current = setTimeout(() => {
+      post({ type: 'SAVE_FIGMA_URL', figmaFileUrl: val });
+    }, 500);
   }
 
   return (
