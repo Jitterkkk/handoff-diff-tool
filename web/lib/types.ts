@@ -1,4 +1,12 @@
 export type ReviewStatus = 'pending' | 'in_progress' | 'done'
+
+export interface ReviewsPage {
+  reviews: ReviewSummary[]
+  total: number
+  limit: number
+  offset: number
+  hasMore: boolean
+}
 export type DiffType = 'COLOR' | 'SIZE' | 'TYPOGRAPHY' | 'CONTENT' | 'ADDED' | 'REMOVED' | 'COMPONENT' | 'LAYOUT' | 'POSITION'
 export type Severity = 'high' | 'medium' | 'low'
 

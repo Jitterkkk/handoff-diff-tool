@@ -11,8 +11,8 @@ export async function GET(request: Request) {
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const reviews = await getReviews({ token }, undefined, status)
-    return NextResponse.json(reviews)
+    const page = await getReviews({ token, status })
+    return NextResponse.json(page.reviews)
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }

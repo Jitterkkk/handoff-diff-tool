@@ -23,8 +23,11 @@ export async function reviewsRoutes(app: FastifyInstance) {
     onRequest: [app.authenticate],
   }, async (req, reply) => {
     const query = ListReviewsQuerySchema.parse(req.query)
-    const reviews = await listReviews(req.user.figmaUserId, query.fileKey, query.status)
-    return reply.send(reviews)
+    const page = await listReviews(req.user.figmaUserId, query.fileKey, query.status, query.limit, query.offset)
+    return reply.send({
+      ...page,
+      hasMore: page.offset + page.reviews.length < page.total,
+    })
   })
 
   app.get<{ Params: z.infer<typeof ReviewParamsSchema> }>('/api/reviews/:reviewId', {

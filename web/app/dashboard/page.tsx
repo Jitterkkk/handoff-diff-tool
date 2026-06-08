@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   let reviews: ReviewSummary[] = []
   if (token) {
     try {
-      reviews = await getReviews({ token })
+      reviews = (await getReviews({ token })).reviews
     } catch {
       reviews = []
     }

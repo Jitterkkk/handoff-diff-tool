@@ -65,6 +65,13 @@ export interface ReviewDetail extends ReviewSummary {
 
 export type ReviewStatus = 'pending' | 'in_progress' | 'done'
 
+export interface ReviewsPage {
+  reviews: ReviewSummary[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface PublicReviewItem {
   id: string
   node_id: string

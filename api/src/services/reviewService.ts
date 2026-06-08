@@ -1,6 +1,6 @@
 import { sql } from '../db/index.js'
 import { publishEvent } from '../redis/index.js'
-import type { DbUser, DbReview, DbReviewItem, ReviewSummary, ReviewDetail, ReviewStatus, PublicReview, PublicReviewItem } from '../types/index.js'
+import type { DbUser, DbReview, DbReviewItem, ReviewSummary, ReviewDetail, ReviewStatus, ReviewsPage, PublicReview, PublicReviewItem } from '../types/index.js'
 import type { PublishReviewBody, DiffResult } from '../schemas/review.js'
 
 async function upsertUser(figmaUserId: string, name: string, email?: string, avatarUrl?: string): Promise<DbUser> {
@@ -98,13 +98,31 @@ export async function publishReview(body: PublishReviewBody): Promise<ReviewDeta
   }
 }
 
-export async function listReviews(figmaUserId: string, fileKey?: string, status?: string): Promise<ReviewSummary[]> {
+export async function listReviews(
+  figmaUserId: string,
+  fileKey?: string,
+  status?: string,
+  limit = 20,
+  offset = 0,
+): Promise<ReviewsPage> {
   const archiveFilter = status === 'archived'
     ? sql`AND r.archived_at IS NOT NULL`
     : sql`AND r.archived_at IS NULL`
   const statusFilter = status && status !== 'archived'
     ? sql`AND r.status = ${status}`
     : sql``
+
+  const [countRow] = await sql<{ count: number }[]>`
+    SELECT COUNT(*)::int AS count
+    FROM reviews r
+    JOIN files f ON f.id = r.file_id
+    JOIN users u ON u.id = r.published_by
+    WHERE u.figma_user_id = ${figmaUserId}
+      ${fileKey ? sql`AND f.figma_file_key = ${fileKey}` : sql``}
+      ${archiveFilter}
+      ${statusFilter}
+  `
+  const total = countRow?.count ?? 0
 
   const rows = await sql<ReviewSummary[]>`
     SELECT
@@ -128,8 +146,9 @@ export async function listReviews(figmaUserId: string, fileKey?: string, status?
       ${statusFilter}
     GROUP BY r.id, u.name
     ORDER BY r.published_at DESC
+    LIMIT ${limit} OFFSET ${offset}
   `
-  return rows
+  return { reviews: rows, total, limit, offset }
 }
 
 export async function deleteReview(reviewId: string, figmaUserId: string): Promise<'deleted' | 'not_found' | 'forbidden'> {

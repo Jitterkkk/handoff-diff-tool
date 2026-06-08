@@ -16,8 +16,8 @@ export async function generateMetadata(): Promise<Metadata> {
   let pendingCount = 0
   if (token) {
     try {
-      const reviews = await getReviews({ token })
-      pendingCount = reviews.filter(r => r.status === 'pending').length
+      const page = await getReviews({ token })
+      pendingCount = page.reviews.filter(r => r.status === 'pending').length
     } catch {}
   }
 
@@ -33,7 +33,7 @@ export default async function ReviewsPage({ searchParams }: Props) {
   let reviews: ReviewSummary[] = []
   if (token) {
     try {
-      reviews = await getReviews({ token })
+      reviews = (await getReviews({ token })).reviews
     } catch {}
   }
 
