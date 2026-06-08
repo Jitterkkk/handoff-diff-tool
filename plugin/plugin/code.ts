@@ -178,7 +178,9 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
             items: diffs,
           };
           try {
+            send({ type: 'PUBLISH_STATUS', message: 'Conectando ao servidor...' });
             await apiClient.wakeUp();
+            send({ type: 'PUBLISH_STATUS', message: 'Publicando review...' });
             const backendReview = await apiClient.publishReview(authToken, publishPayload);
             review.backendReviewId = backendReview.id;
             await saveReview(review);
@@ -187,9 +189,11 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
             const status = (err as { status?: number })?.status;
             if (status === 401) {
               await clearAuthToken();
+              send({ type: 'PUBLISH_STATUS', message: 'Renovando autenticação...' });
               authToken = await authenticateUser();
               if (authToken !== null) {
                 try {
+                  send({ type: 'PUBLISH_STATUS', message: 'Publicando review...' });
                   const backendReview = await apiClient.publishReview(authToken, publishPayload);
                   review.backendReviewId = backendReview.id;
                   await saveReview(review);

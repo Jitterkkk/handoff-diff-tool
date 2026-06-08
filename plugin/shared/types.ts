@@ -153,4 +153,5 @@ export type PluginToUIMessage =
   | { type: 'REVIEW_PUBLISHED'; synced: false; reason: 'no_changes' }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
   | { type: 'SETTINGS'; includePosition: boolean; figmaFileUrl?: string }
+  | { type: 'PUBLISH_STATUS'; message: string }
   | { type: 'ERROR'; message: string };

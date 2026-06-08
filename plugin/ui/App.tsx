@@ -78,6 +78,7 @@ function post(msg: UIToPluginMessage): void {
 export function App() {
   const [state, dispatch] = useReducer(reducer, initial);
   const [figmaFileUrl, setFigmaFileUrl] = useState('');
+  const [publishStatus, setPublishStatus] = useState('');
 
   // Init
   useEffect(() => {
@@ -105,6 +106,9 @@ export function App() {
             dispatch({ type: 'PUBLISH_SUCCESS', result: msg.synced ? 'synced' : 'offline' });
           }
           break;
+        case 'PUBLISH_STATUS':
+          setPublishStatus(msg.message);
+          break;
         case 'SETTINGS':
           if (msg.figmaFileUrl) setFigmaFileUrl(msg.figmaFileUrl);
           break;
@@ -129,6 +133,7 @@ export function App() {
   }, [state.status]);
 
   const handlePublish = useCallback(() => {
+    setPublishStatus('');
     dispatch({ type: 'PUBLISH_START' });
     post({ type: 'PUBLISH_REVIEW', description: '', figmaFileUrl: figmaFileUrl || undefined });
   }, [figmaFileUrl]);
@@ -181,7 +186,10 @@ export function App() {
       {state.status === 'publishing' && (
         <div style={styles.center}>
           <div style={styles.spinner} />
-          <p style={styles.emptyTitle}>Publicando review...</p>
+          <p style={styles.emptyTitle}>Publicando...</p>
+          {publishStatus ? (
+            <p style={styles.emptySubtitle}>{publishStatus}</p>
+          ) : null}
         </div>
       )}
 
