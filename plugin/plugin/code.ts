@@ -145,7 +145,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         const diffs = diffSnapshots(entry.snapshot, current, { includePosition: false });
 
         if (diffs.length === 0) {
-          figma.ui.postMessage({ type: 'REVIEW_PUBLISHED', synced: false, reason: 'no_changes' });
+          send({ type: 'REVIEW_PUBLISHED', synced: false, reason: 'no_changes' });
           return;
         }
 

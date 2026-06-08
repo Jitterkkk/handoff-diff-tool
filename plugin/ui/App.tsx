@@ -17,14 +17,14 @@ interface AppState {
   authStatus: 'loading' | 'authenticated' | 'offline';
   userName: string | null;
   error: string | null;
-  synced: boolean;
+  publishResult: 'synced' | 'offline' | 'no_changes' | null;
 }
 
 type Action =
   | { type: 'NO_FRAME' }
   | { type: 'FRAMES_UPDATED'; frames: FrameMeta[]; sessionStart: number }
   | { type: 'PUBLISH_START' }
-  | { type: 'PUBLISH_SUCCESS'; synced: boolean }
+  | { type: 'PUBLISH_SUCCESS'; result: 'synced' | 'offline' | 'no_changes' }
   | { type: 'PUBLISH_RESET' }
   | { type: 'ERROR'; message: string }
   | { type: 'RETRY' }
@@ -37,7 +37,7 @@ const initial: AppState = {
   authStatus: 'loading',
   userName: null,
   error: null,
-  synced: false,
+  publishResult: null,
 };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -55,13 +55,13 @@ function reducer(state: AppState, action: Action): AppState {
     case 'PUBLISH_START':
       return { ...state, status: 'publishing', error: null };
     case 'PUBLISH_SUCCESS':
-      return { ...state, status: 'published', error: null, synced: action.synced };
+      return { ...state, status: 'published', error: null, publishResult: action.result };
     case 'PUBLISH_RESET':
-      return { ...state, status: state.frames.length > 0 ? 'ready' : 'no_frame' };
+      return { ...state, status: state.frames.length > 0 ? 'ready' : 'no_frame', publishResult: null };
     case 'ERROR':
       return { ...state, status: 'error', error: action.message };
     case 'RETRY':
-      return { ...state, status: state.frames.length > 0 ? 'ready' : 'no_frame', error: null };
+      return { ...state, status: state.frames.length > 0 ? 'ready' : 'no_frame', error: null, publishResult: null };
     case 'AUTH_STATUS':
       return {
         ...state,
@@ -99,7 +99,11 @@ export function App() {
           dispatch({ type: 'FRAMES_UPDATED', frames: msg.frames, sessionStart: 0 });
           break;
         case 'REVIEW_PUBLISHED':
-          dispatch({ type: 'PUBLISH_SUCCESS', synced: msg.synced ?? false });
+          if ('reason' in msg && msg.reason === 'no_changes') {
+            dispatch({ type: 'PUBLISH_SUCCESS', result: 'no_changes' });
+          } else {
+            dispatch({ type: 'PUBLISH_SUCCESS', result: msg.synced ? 'synced' : 'offline' });
+          }
           break;
         case 'SETTINGS':
           if (msg.figmaFileUrl) setFigmaFileUrl(msg.figmaFileUrl);
@@ -184,18 +188,24 @@ export function App() {
       {/* Status 4 — Publicado */}
       {state.status === 'published' && (
         <div style={styles.center}>
-          <div style={styles.successIcon}>✓</div>
+          <div style={
+            state.publishResult === 'synced' ? styles.successIcon :
+            state.publishResult === 'offline' ? styles.warnIcon :
+            styles.neutralIcon
+          }>
+            {state.publishResult === 'synced' ? '✓' : state.publishResult === 'offline' ? '!' : '–'}
+          </div>
           <p style={styles.successTitle}>
-            {state.synced
-              ? 'Review publicado e sincronizado com o time!'
-              : 'Review salvo localmente'}
+            {state.publishResult === 'synced' && 'Review publicado'}
+            {state.publishResult === 'offline' && 'Salvo localmente'}
+            {state.publishResult === 'no_changes' && 'Nenhuma mudança detectada'}
           </p>
           <p style={styles.successSubtitle}>
-            {state.synced
-              ? 'O time será notificado'
-              : 'Conecte-se para sincronizar com o time'}
+            {state.publishResult === 'synced' && 'Time notificado'}
+            {state.publishResult === 'offline' && 'Sem conexão com o servidor'}
+            {state.publishResult === 'no_changes' && 'O frame está igual à versão anterior'}
           </p>
-          {state.synced && (
+          {state.publishResult === 'synced' && (
             <a
               href={DASHBOARD_URL}
               target="_blank"
@@ -322,6 +332,32 @@ const styles: Record<string, React.CSSProperties> = {
     height: 48,
     borderRadius: '50%',
     background: '#22c55e',
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  warnIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: '50%',
+    background: '#f59e0b',
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  neutralIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: '50%',
+    background: '#9ca3af',
     color: '#fff',
     fontSize: 22,
     fontWeight: 700,

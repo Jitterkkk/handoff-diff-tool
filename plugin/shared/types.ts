@@ -149,7 +149,8 @@ export type PluginToUIMessage =
   | { type: 'CURRENT_FRAMES'; frames: FrameMeta[]; sessionStart: number }
   | { type: 'NO_FRAME_SELECTED' }
   | { type: 'SNAPSHOT_SAVED'; frames: FrameMeta[] }
-  | { type: 'REVIEW_PUBLISHED'; review: FrameReview; frames: FrameMeta[]; synced: boolean }
+  | { type: 'REVIEW_PUBLISHED'; synced: boolean; review: FrameReview; frames: FrameMeta[] }
+  | { type: 'REVIEW_PUBLISHED'; synced: false; reason: 'no_changes' }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
   | { type: 'SETTINGS'; includePosition: boolean; figmaFileUrl?: string }
   | { type: 'ERROR'; message: string };
