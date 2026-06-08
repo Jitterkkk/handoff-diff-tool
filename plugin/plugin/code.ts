@@ -50,6 +50,7 @@ async function authenticateUser(): Promise<string | null> {
 // ─── Session state ────────────────────────────────────────────────────────────
 
 let sessionStart = 0;
+let includePosition = false;
 const capturingFrameIds = new Set<string>();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
         }
         const entry = history.entries[history.entries.length - 1];
         const current = takeSnapshot(frame);
-        const diffs = diffSnapshots(entry.snapshot, current, { includePosition: false });
+        const diffs = diffSnapshots(entry.snapshot, current, { includePosition });
 
         if (diffs.length === 0) {
           send({ type: 'REVIEW_PUBLISHED', synced: false, reason: 'no_changes' });
@@ -212,12 +213,14 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
     case 'GET_SETTINGS': {
       const settings = await loadSettings();
+      includePosition = settings.includePosition;
       const figmaFileUrl = (await figma.clientStorage.getAsync('figmaFileUrl') as string | undefined) ?? '';
       send({ type: 'SETTINGS', includePosition: settings.includePosition, figmaFileUrl });
       break;
     }
 
     case 'SAVE_SETTINGS': {
+      includePosition = msg.includePosition;
       await saveSettings({ includePosition: msg.includePosition });
       break;
     }
