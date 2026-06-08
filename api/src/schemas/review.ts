@@ -26,7 +26,7 @@ export const PublishReviewBodySchema = z.object({
 
 export const ListReviewsQuerySchema = z.object({
   fileKey: z.string().min(1).optional(),
-  status: z.enum(['pending', 'in_progress', 'done']).optional(),
+  status: z.enum(['pending', 'in_progress', 'done', 'archived']).optional(),
 })
 
 export const PatchReviewItemBodySchema = z.object({

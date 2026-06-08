@@ -28,6 +28,7 @@ export interface DbReview {
   snapshot_after: unknown
   published_at: Date
   updated_at: Date
+  archived_at: Date | null
 }
 
 export interface DbReviewItem {

@@ -3,6 +3,7 @@ import type { ReviewSummary } from '@/lib/types'
 import { StatusBadge } from './StatusBadge'
 import { ProgressBar } from './ProgressBar'
 import { ShareButton } from './ShareButton'
+import { ReviewCardActions } from './ReviewCardActions'
 import { timeAgo } from '@/lib/utils'
 
 interface Props {
@@ -19,7 +20,10 @@ export function ReviewCard({ review }: Props) {
             {review.published_by_name} • {timeAgo(review.published_at)}
           </p>
         </div>
-        <StatusBadge status={review.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={review.status} />
+          <ReviewCardActions reviewId={review.id} />
+        </div>
       </div>
 
       <ProgressBar checked={review.checked_items} total={review.total_items} />

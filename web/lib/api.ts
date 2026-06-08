@@ -62,3 +62,19 @@ export async function checkItem(
     body: JSON.stringify({ checked }),
   })
 }
+
+export async function deleteReview(opts: ApiOptions, reviewId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/reviews/${reviewId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${opts.token}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText })) as { error?: string }
+    throw new Error(err.error ?? `HTTP ${res.status}`)
+  }
+}
+
+export async function archiveReview(opts: ApiOptions, reviewId: string): Promise<void> {
+  await request<unknown>(`/api/reviews/${reviewId}/archive`, { ...opts, method: 'PATCH' })
+}

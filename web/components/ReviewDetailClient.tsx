@@ -7,6 +7,7 @@ import { StatusBadge } from './StatusBadge'
 import { ProgressBar } from './ProgressBar'
 import { DiffItemRow } from './DiffItemRow'
 import { ShareButton } from './ShareButton'
+import { ReviewCardActions } from './ReviewCardActions'
 import { timeAgo } from '@/lib/utils'
 
 const SEVERITY_LABELS: Record<Severity, string> = {
@@ -80,6 +81,7 @@ export function ReviewDetailClient({ initialReview, reviewId }: Props) {
           <div className="flex items-center gap-3 shrink-0">
             <ShareButton reviewId={reviewId} />
             <StatusBadge status={review.status} />
+            <ReviewCardActions reviewId={reviewId} />
           </div>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">

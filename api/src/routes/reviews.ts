@@ -8,7 +8,7 @@ import {
   ReviewParamsSchema,
   ReviewItemParamsSchema,
 } from '../schemas/review.js'
-import { publishReview, listReviews, getReview, patchReviewItem, getPublicReview, patchPublicReviewItem } from '../services/reviewService.js'
+import { publishReview, listReviews, getReview, patchReviewItem, getPublicReview, patchPublicReviewItem, deleteReview, archiveReview } from '../services/reviewService.js'
 
 export async function reviewsRoutes(app: FastifyInstance) {
   app.post('/api/reviews', {
@@ -44,6 +44,26 @@ export async function reviewsRoutes(app: FastifyInstance) {
     const review = await patchReviewItem(reviewId, itemId, body.checked, body.checkedBy)
     if (!review) return reply.code(404).send({ error: 'Review or item not found' })
     return reply.send(review)
+  })
+
+  app.delete<{ Params: z.infer<typeof ReviewParamsSchema> }>('/api/reviews/:reviewId', {
+    onRequest: [app.authenticate],
+  }, async (req, reply) => {
+    const { reviewId } = ReviewParamsSchema.parse(req.params)
+    const result = await deleteReview(reviewId, req.user.figmaUserId)
+    if (result === 'not_found') return reply.code(404).send({ error: 'Review not found' })
+    if (result === 'forbidden') return reply.code(403).send({ error: 'Access denied' })
+    return reply.code(204).send()
+  })
+
+  app.patch<{ Params: z.infer<typeof ReviewParamsSchema> }>('/api/reviews/:reviewId/archive', {
+    onRequest: [app.authenticate],
+  }, async (req, reply) => {
+    const { reviewId } = ReviewParamsSchema.parse(req.params)
+    const result = await archiveReview(reviewId, req.user.figmaUserId)
+    if (result === 'not_found') return reply.code(404).send({ error: 'Review not found' })
+    if (result === 'forbidden') return reply.code(403).send({ error: 'Access denied' })
+    return reply.send(result)
   })
 
   // Rotas públicas — sem autenticação

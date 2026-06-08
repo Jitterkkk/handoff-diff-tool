@@ -99,6 +99,13 @@ export async function publishReview(body: PublishReviewBody): Promise<ReviewDeta
 }
 
 export async function listReviews(figmaUserId: string, fileKey?: string, status?: string): Promise<ReviewSummary[]> {
+  const archiveFilter = status === 'archived'
+    ? sql`AND r.archived_at IS NOT NULL`
+    : sql`AND r.archived_at IS NULL`
+  const statusFilter = status && status !== 'archived'
+    ? sql`AND r.status = ${status}`
+    : sql``
+
   const rows = await sql<ReviewSummary[]>`
     SELECT
       r.id,
@@ -117,11 +124,40 @@ export async function listReviews(figmaUserId: string, fileKey?: string, status?
     LEFT JOIN review_items ri ON ri.review_id = r.id
     WHERE u.figma_user_id = ${figmaUserId}
       ${fileKey ? sql`AND f.figma_file_key = ${fileKey}` : sql``}
-      ${status ? sql`AND r.status = ${status}` : sql``}
+      ${archiveFilter}
+      ${statusFilter}
     GROUP BY r.id, u.name
     ORDER BY r.published_at DESC
   `
   return rows
+}
+
+export async function deleteReview(reviewId: string, figmaUserId: string): Promise<'deleted' | 'not_found' | 'forbidden'> {
+  const [review] = await sql<{ id: string; figma_user_id: string }[]>`
+    SELECT r.id, u.figma_user_id
+    FROM reviews r
+    JOIN users u ON u.id = r.published_by
+    WHERE r.id = ${reviewId}
+  `
+  if (!review) return 'not_found'
+  if (review.figma_user_id !== figmaUserId) return 'forbidden'
+
+  await sql`DELETE FROM reviews WHERE id = ${reviewId}`
+  return 'deleted'
+}
+
+export async function archiveReview(reviewId: string, figmaUserId: string): Promise<ReviewDetail | 'not_found' | 'forbidden'> {
+  const [review] = await sql<{ id: string; figma_user_id: string }[]>`
+    SELECT r.id, u.figma_user_id
+    FROM reviews r
+    JOIN users u ON u.id = r.published_by
+    WHERE r.id = ${reviewId}
+  `
+  if (!review) return 'not_found'
+  if (review.figma_user_id !== figmaUserId) return 'forbidden'
+
+  await sql`UPDATE reviews SET archived_at = NOW(), updated_at = NOW() WHERE id = ${reviewId}`
+  return getReview(reviewId) as Promise<ReviewDetail>
 }
 
 export async function getReview(reviewId: string): Promise<ReviewDetail | null> {
