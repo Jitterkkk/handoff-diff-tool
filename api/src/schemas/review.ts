@@ -37,6 +37,10 @@ export const PatchReviewItemBodySchema = z.object({
   }).optional(),
 })
 
+export const PatchPublicReviewItemBodySchema = z.object({
+  checked: z.boolean(),
+})
+
 export const ReviewParamsSchema = z.object({
   reviewId: z.string().uuid(),
 })
@@ -49,4 +53,5 @@ export const ReviewItemParamsSchema = z.object({
 export type PublishReviewBody = z.infer<typeof PublishReviewBodySchema>
 export type ListReviewsQuery = z.infer<typeof ListReviewsQuerySchema>
 export type PatchReviewItemBody = z.infer<typeof PatchReviewItemBodySchema>
+export type PatchPublicReviewItemBody = z.infer<typeof PatchPublicReviewItemBodySchema>
 export type DiffResult = z.infer<typeof DiffResultSchema>

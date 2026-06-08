@@ -4,6 +4,7 @@ import {
   PublishReviewBodySchema,
   ListReviewsQuerySchema,
   PatchReviewItemBodySchema,
+  PatchPublicReviewItemBodySchema,
   ReviewParamsSchema,
   ReviewItemParamsSchema,
 } from '../schemas/review.js'
@@ -55,7 +56,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: z.infer<typeof ReviewItemParamsSchema> }>('/api/reviews/:reviewId/items/:itemId/public', async (req, reply) => {
     const { reviewId, itemId } = ReviewItemParamsSchema.parse(req.params)
-    const body = PatchReviewItemBodySchema.parse(req.body)
+    const body = PatchPublicReviewItemBodySchema.parse(req.body)
     const item = await patchPublicReviewItem(reviewId, itemId, body.checked)
     if (!item) return reply.code(404).send({ error: 'Review item not found' })
     return reply.send(item)
