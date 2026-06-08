@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { getReviews } from '@/lib/api'
 import { ReviewCard } from '@/components/ReviewCard'
+import { Onboarding } from '@/components/Onboarding'
 import type { ReviewSummary } from '@/lib/types'
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
@@ -53,11 +54,7 @@ export default async function DashboardPage() {
       </div>
 
       {recent.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 dark:text-gray-600">
-          <p className="text-4xl mb-3">◻</p>
-          <p className="text-sm font-medium">Nenhum review publicado ainda</p>
-          <p className="text-xs mt-1">Publique um review pelo plugin do Figma para começar</p>
-        </div>
+        <Onboarding />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {recent.map(r => <ReviewCard key={r.id} review={r} />)}

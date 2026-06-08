@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { getReviews } from '@/lib/api'
 import { ReviewsListClient } from '@/components/ReviewsListClient'
+import { Onboarding } from '@/components/Onboarding'
 import type { ReviewSummary } from '@/lib/types'
 import type { Metadata } from 'next'
 
@@ -45,7 +46,11 @@ export default async function ReviewsPage({ searchParams }: Props) {
         </p>
       </div>
 
-      <ReviewsListClient initialReviews={reviews} initialStatus={status} />
+      {reviews.length === 0 ? (
+        <Onboarding />
+      ) : (
+        <ReviewsListClient initialReviews={reviews} initialStatus={status} />
+      )}
     </div>
   )
 }
