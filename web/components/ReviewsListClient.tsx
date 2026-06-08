@@ -22,6 +22,11 @@ export function ReviewsListClient({ initialReviews, initialStatus }: Props) {
   const initialIds = useRef(new Set(initialReviews.map(r => r.id)))
   const status = initialStatus ?? 'all'
 
+  const dismissNewCount = useCallback(() => {
+    initialIds.current = new Set(reviews.map(r => r.id))
+    setNewCount(0)
+  }, [reviews])
+
   const fetchLatest = useCallback(async () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     try {
@@ -67,10 +72,17 @@ export function ReviewsListClient({ initialReviews, initialStatus }: Props) {
           </a>
         ))}
         {newCount > 0 && (
-          <span className="ml-auto inline-flex items-center gap-1 text-xs text-blue-600 font-medium bg-blue-50 px-2.5 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            {newCount} {newCount === 1 ? 'novo' : 'novos'}
-          </span>
+          <div className="ml-auto inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse" />
+            <span>{newCount} {newCount === 1 ? 'novo' : 'novos'}</span>
+            <button
+              onClick={dismissNewCount}
+              aria-label="Dispensar notificação"
+              className="ml-1 opacity-70 hover:opacity-100 transition-opacity leading-none"
+            >
+              ×
+            </button>
+          </div>
         )}
       </div>
 
