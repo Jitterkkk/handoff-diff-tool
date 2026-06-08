@@ -79,6 +79,8 @@ export function App() {
   const [state, dispatch] = useReducer(reducer, initial);
   const [figmaFileUrl, setFigmaFileUrl] = useState('');
   const [publishStatus, setPublishStatus] = useState('');
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState('');
 
   // Init
   useEffect(() => {
@@ -109,6 +111,10 @@ export function App() {
         case 'PUBLISH_STATUS':
           setPublishStatus(msg.message);
           break;
+        case 'FRAME_RESET':
+          setResetFeedback('Baseline resetado — próxima publicação vai capturar o estado atual como referência');
+          setTimeout(() => setResetFeedback(''), 6000);
+          break;
         case 'SETTINGS':
           if (msg.figmaFileUrl) setFigmaFileUrl(msg.figmaFileUrl);
           break;
@@ -132,11 +138,24 @@ export function App() {
     return () => clearTimeout(timer);
   }, [state.status]);
 
+  useEffect(() => {
+    setResetConfirm(false);
+  }, [state.frames]);
+
   const handlePublish = useCallback(() => {
     setPublishStatus('');
     dispatch({ type: 'PUBLISH_START' });
     post({ type: 'PUBLISH_REVIEW', description: '', figmaFileUrl: figmaFileUrl || undefined });
   }, [figmaFileUrl]);
+
+  function handleReset() {
+    if (!resetConfirm) {
+      setResetConfirm(true);
+      return;
+    }
+    setResetConfirm(false);
+    post({ type: 'RESET_FRAME', frameId: state.frames[0]?.id ?? '' });
+  }
 
   function handleUrlChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
@@ -178,6 +197,16 @@ export function App() {
               Publicar review
             </button>
             <p style={styles.hint}>Detecta as mudanças e notifica o time</p>
+            {resetFeedback ? (
+              <p style={styles.resetFeedback}>{resetFeedback}</p>
+            ) : (
+              <button
+                style={resetConfirm ? styles.resetBtnConfirm : styles.resetBtn}
+                onClick={handleReset}
+              >
+                {resetConfirm ? 'Confirmar reset' : 'Resetar baseline'}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -391,6 +420,33 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#18a0fb',
     textDecoration: 'none',
     fontWeight: 600,
+  },
+  resetBtn: {
+    background: 'none',
+    border: 'none',
+    color: '#bbb',
+    fontSize: 10,
+    cursor: 'pointer',
+    padding: '2px 0',
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
+  },
+  resetBtnConfirm: {
+    background: 'none',
+    border: 'none',
+    color: '#ef4444',
+    fontSize: 10,
+    cursor: 'pointer',
+    padding: '2px 0',
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
+    fontWeight: 600,
+  },
+  resetFeedback: {
+    fontSize: 10,
+    color: '#22c55e',
+    margin: 0,
+    textAlign: 'center' as const,
   },
   errorIcon: {
     width: 48,

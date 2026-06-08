@@ -2,7 +2,7 @@
 
 import { takeSnapshot } from './snapshot';
 import { diffSnapshots } from './diff';
-import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, saveAuthToken, loadAuthToken, clearAuthToken } from './storage';
+import { saveToHistory, loadHistory, toMetaEntries, loadSettings, saveSettings, saveReview, saveAuthToken, loadAuthToken, clearAuthToken, clearFrameHistory } from './storage';
 import { createHighlight, clearHighlights } from './highlight';
 import { refreshBadge } from './badge';
 import { apiClient } from './api';
@@ -251,6 +251,14 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
     case 'SAVE_FIGMA_URL': {
       await figma.clientStorage.setAsync('figmaFileUrl', msg.figmaFileUrl);
+      break;
+    }
+
+    case 'RESET_FRAME': {
+      await clearFrameHistory(msg.frameId);
+      capturingFrameIds.delete(msg.frameId);
+      send({ type: 'FRAME_RESET', frameId: msg.frameId });
+      await notifyCurrentFrames(false);
       break;
     }
   }

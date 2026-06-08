@@ -31,6 +31,10 @@ export async function saveToHistory(
   return history;
 }
 
+export async function clearFrameHistory(frameId: string): Promise<void> {
+  await figma.clientStorage.deleteAsync(`${HISTORY_PREFIX}${frameId}`);
+}
+
 export async function loadHistory(frameId: string): Promise<SnapshotHistory | null> {
   const value: unknown = await figma.clientStorage.getAsync(`${HISTORY_PREFIX}${frameId}`);
 

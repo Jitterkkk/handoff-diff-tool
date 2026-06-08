@@ -141,7 +141,8 @@ export type UIToPluginMessage =
   | { type: 'CLEAR_HIGHLIGHTS' }
   | { type: 'GET_SETTINGS' }
   | { type: 'SAVE_SETTINGS'; includePosition: boolean }
-  | { type: 'SAVE_FIGMA_URL'; figmaFileUrl: string };
+  | { type: 'SAVE_FIGMA_URL'; figmaFileUrl: string }
+  | { type: 'RESET_FRAME'; frameId: string };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -154,4 +155,5 @@ export type PluginToUIMessage =
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
   | { type: 'SETTINGS'; includePosition: boolean; figmaFileUrl?: string }
   | { type: 'PUBLISH_STATUS'; message: string }
+  | { type: 'FRAME_RESET'; frameId: string }
   | { type: 'ERROR'; message: string };
