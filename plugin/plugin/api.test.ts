@@ -71,6 +71,7 @@ describe('apiClient.publishReview', () => {
 
     await apiClient.publishReview('my-token', {
       fileKey: 'file-abc',
+      fileName: 'My Design File',
       frameName: 'Login',
       frameId: 'f1',
       description: '',
@@ -98,6 +99,7 @@ describe('apiClient.publishReview', () => {
     await expect(
       apiClient.publishReview('tok', {
         fileKey: 'k',
+        fileName: 'File',
         frameName: 'F',
         frameId: 'id',
         description: '',
@@ -178,6 +180,7 @@ describe('publishReview — fileKey correto', () => {
 
     await apiClient.publishReview('tok', {
       fileKey: 'abc123-real-file-key',
+      fileName: 'My File',
       frameName: 'Home',
       frameId: 'f1',
       description: '',
@@ -200,6 +203,7 @@ describe('modo offline gracioso', () => {
     try {
       await apiClient.publishReview('tok', {
         fileKey: 'fk',
+        fileName: 'File',
         frameName: 'F',
         frameId: 'id',
         description: '',

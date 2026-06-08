@@ -79,6 +79,7 @@ export interface ApiClient {
   authenticate(user: { figmaUserId: string; name: string; avatarUrl?: string }): Promise<string>;
   publishReview(token: string, payload: {
     fileKey: string;
+    fileName: string;
     frameName: string;
     frameId: string;
     description: string;
@@ -110,6 +111,7 @@ class ApiClientImpl implements ApiClient {
 
   async publishReview(token: string, payload: {
     fileKey: string;
+    fileName: string;
     frameName: string;
     frameId: string;
     description: string;
@@ -122,7 +124,7 @@ class ApiClientImpl implements ApiClient {
       token,
       body: JSON.stringify({
         fileKey: payload.fileKey,
-        fileName: 'Figma File',
+        fileName: payload.fileName,
         frameId: payload.frameId,
         frameName: payload.frameName,
         description: payload.description,

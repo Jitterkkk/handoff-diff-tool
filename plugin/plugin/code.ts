@@ -170,6 +170,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
           const fileKey = extracted ?? figma.fileKey ?? figma.root.id;
           const publishPayload = {
             fileKey,
+            fileName: figma.root.name || 'Figma File',
             frameName: frame.name,
             frameId: frame.id,
             description: msg.description,
