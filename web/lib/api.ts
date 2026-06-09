@@ -1,4 +1,4 @@
-import type { ReviewSummary, ReviewDetail, ReviewsPage, PublicReview } from './types'
+import type { ReviewSummary, ReviewDetail, ReviewsPage, PublicReview, FileWithStats } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://handoff-api.onrender.com'
 
@@ -81,4 +81,19 @@ export async function deleteReview(opts: ApiOptions, reviewId: string): Promise<
 
 export async function archiveReview(opts: ApiOptions, reviewId: string): Promise<void> {
   await request<unknown>(`/api/reviews/${reviewId}/archive`, { ...opts, method: 'PATCH' })
+}
+
+export async function getFiles(opts: ApiOptions): Promise<FileWithStats[]> {
+  return request<FileWithStats[]>('/api/files', opts)
+}
+
+export async function getFileReviews(
+  opts: ApiOptions & { fileKey: string; status?: string; limit?: number; offset?: number },
+): Promise<ReviewsPage> {
+  const { token, fileKey, status, limit = 20, offset = 0 } = opts
+  const params = new URLSearchParams()
+  if (status) params.set('status', status)
+  params.set('limit', String(limit))
+  params.set('offset', String(offset))
+  return request<ReviewsPage>(`/api/files/${encodeURIComponent(fileKey)}/reviews?${params.toString()}`, { token })
 }

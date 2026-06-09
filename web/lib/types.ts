@@ -1,5 +1,15 @@
 export type ReviewStatus = 'pending' | 'in_progress' | 'done'
 
+export interface FileWithStats {
+  fileKey: string
+  fileName: string
+  totalReviews: number
+  pending: number
+  inProgress: number
+  done: number
+  lastReviewAt: string
+}
+
 export interface ReviewsPage {
   reviews: ReviewSummary[]
   total: number
