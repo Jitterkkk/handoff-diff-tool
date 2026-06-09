@@ -9,6 +9,7 @@ const navItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: '◻' },
   { href: '/dashboard/reviews', label: 'Reviews', icon: '◈' },
   { href: '/dashboard/files', label: 'Arquivos', icon: '⊞' },
+  { href: '/dashboard/settings', label: 'Configurações', icon: '⚙' },
 ]
 
 interface Props {

@@ -9,6 +9,7 @@ import {
   ReviewItemParamsSchema,
 } from '../schemas/review.js'
 import { publishReview, listReviews, getReview, patchReviewItem, getPublicReview, patchPublicReviewItem, deleteReview, archiveReview } from '../services/reviewService.js'
+import { getWebhook, sendNotification } from '../services/slackService.js'
 import { redis } from '../redis/index.js'
 import { rateLimit } from '../middleware/rateLimit.js'
 
@@ -18,6 +19,16 @@ export async function reviewsRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const body = PublishReviewBodySchema.parse(req.body)
     const review = await publishReview(body)
+    const webhookUrl = await getWebhook(req.user.figmaUserId)
+    if (webhookUrl) {
+      sendNotification(webhookUrl, {
+        reviewId: review.id,
+        frameName: review.frame_name,
+        fileName: body.fileName,
+        publishedBy: req.user.name ?? 'Designer',
+        itemCount: review.items.length,
+      }).catch(() => {})
+    }
     return reply.code(201).send(review)
   })
 

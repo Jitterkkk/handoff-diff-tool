@@ -87,6 +87,21 @@ export async function getFiles(opts: ApiOptions): Promise<FileWithStats[]> {
   return request<FileWithStats[]>('/api/files', opts)
 }
 
+export async function getSlackIntegration(
+  opts: ApiOptions,
+): Promise<{ webhookUrl: string; enabled: boolean } | null> {
+  try {
+    const text = await fetch(`${API_BASE}/api/slack/webhook`, {
+      headers: { Authorization: `Bearer ${opts.token}` },
+      cache: 'no-store',
+    }).then(r => (r.ok ? r.text() : null))
+    if (!text) return null
+    return JSON.parse(text) as { webhookUrl: string; enabled: boolean } | null
+  } catch {
+    return null
+  }
+}
+
 export async function getFileReviews(
   opts: ApiOptions & { fileKey: string; status?: string; limit?: number; offset?: number },
 ): Promise<ReviewsPage> {
