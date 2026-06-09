@@ -72,6 +72,16 @@ export interface ReviewsPage {
   offset: number
 }
 
+export interface FileWithStats {
+  fileKey: string
+  fileName: string
+  totalReviews: number
+  pending: number
+  inProgress: number
+  done: number
+  lastReviewAt: Date
+}
+
 export interface PublicReviewItem {
   id: string
   node_id: string
