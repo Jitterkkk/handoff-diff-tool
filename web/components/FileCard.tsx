@@ -12,11 +12,67 @@ function timeAgo(dateStr: string): string {
   return 'agora'
 }
 
+function isLocalFile(fileName: string): boolean {
+  return fileName === 'Figma File' || fileName.startsWith('local-')
+}
+
 interface Props {
   file: FileWithStats
 }
 
+function CardBadges({ file }: Props) {
+  return (
+    <div className="flex flex-wrap gap-1.5 mb-3">
+      {file.pending > 0 && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-400" />
+          {file.pending} pendente{file.pending !== 1 ? 's' : ''}
+        </span>
+      )}
+      {file.inProgress > 0 && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 dark:bg-yellow-400" />
+          {file.inProgress} em andamento
+        </span>
+      )}
+      {file.done > 0 && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 dark:bg-green-400" />
+          {file.done} concluído{file.done !== 1 ? 's' : ''}
+        </span>
+      )}
+      {file.pending === 0 && file.inProgress === 0 && file.done === 0 && (
+        <span className="text-xs text-gray-400 dark:text-gray-500">Sem reviews ativos</span>
+      )}
+    </div>
+  )
+}
+
 export function FileCard({ file }: Props) {
+  const local = isLocalFile(file.fileName)
+
+  if (local) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 opacity-70 cursor-not-allowed">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 leading-snug truncate">
+            Arquivo local
+          </h3>
+          <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            {file.totalReviews} review{file.totalReviews !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+          publicado antes da integração com Figma
+        </p>
+        <CardBadges file={file} />
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          Último review há {timeAgo(file.lastReviewAt)}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <Link
       href={`/dashboard/files/${encodeURIComponent(file.fileKey)}`}
@@ -30,31 +86,7 @@ export function FileCard({ file }: Props) {
           {file.totalReviews} review{file.totalReviews !== 1 ? 's' : ''}
         </span>
       </div>
-
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {file.pending > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-400" />
-            {file.pending} pendente{file.pending !== 1 ? 's' : ''}
-          </span>
-        )}
-        {file.inProgress > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 dark:bg-yellow-400" />
-            {file.inProgress} em andamento
-          </span>
-        )}
-        {file.done > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 dark:bg-green-400" />
-            {file.done} concluído{file.done !== 1 ? 's' : ''}
-          </span>
-        )}
-        {file.pending === 0 && file.inProgress === 0 && file.done === 0 && (
-          <span className="text-xs text-gray-400 dark:text-gray-500">Sem reviews ativos</span>
-        )}
-      </div>
-
+      <CardBadges file={file} />
       <p className="text-xs text-gray-400 dark:text-gray-500">
         Último review há {timeAgo(file.lastReviewAt)}
       </p>
