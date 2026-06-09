@@ -8,6 +8,56 @@ Plugin para Figma que detecta automaticamente o que mudou entre versões de uma 
 
 ---
 
+## Versão atual: v0.3.0
+
+---
+
+## O que mudou desde a última versão
+
+### Segurança (Sprint 1)
+- Reviews isolados por usuário autenticado
+- Cookie JWT agora httpOnly via Route Handler
+- Middleware de rotas /dashboard → /login confirmado
+- Rota pública remove checkedBy para evitar injeção
+
+### Produto (Sprint 2)
+- Plugin distingue no_changes / offline / synced com visuais diferentes
+- includePosition agora usa o setting real (não mais hardcoded false)
+- Re-autenticação automática quando token expira (401)
+- Feedback progressivo de cold start: "Conectando...", "Publicando..."
+- Polling preserva filtro de status ativo
+- fileName usa figma.root.name em vez de 'Figma File' hardcoded
+
+### Gestão e onboarding (Sprint 3)
+- Deletar e arquivar reviews (backend + frontend com confirmação)
+- Reset de baseline por frame no plugin
+- Tela de onboarding para primeiro acesso
+- Badge de novos reviews dismissível
+
+### Qualidade técnica (Sprint 4)
+- Paginação no GET /api/reviews com limit/offset/total/hasMore
+- Debounce de 500ms no SAVE_FIGMA_URL
+- capturingFrameIds sempre limpo no finally
+- Rate limiting por IP nas rotas públicas via Redis
+- auth.ts marcado como server-only
+- api/MIGRATIONS.md criado com schema e guia completo
+
+### Feature B — Dashboard por arquivo
+- GET /api/files e GET /api/files/:fileKey/reviews
+- Página /dashboard/files com FileCard (badges por status)
+- Página /dashboard/files/[fileKey] com reviews filtrados
+- Arquivos locais desabilitados sem gerar 404
+- Item "Arquivos" na sidebar
+
+### Feature A — Notificações Slack
+- Tabela slack_integrations no banco (migration 003)
+- Notificação fire-and-forget ao publicar review
+- Página /dashboard/settings com campo de webhook
+- Botão de teste, mascaramento do URL, remoção com confirmação
+- Item "Configurações" na sidebar
+
+---
+
 ## Monorepo — Estrutura
 
 ```
@@ -199,27 +249,43 @@ GET  /auth/me                → JWT requerido
 GET  /auth/figma             → inicia OAuth (state no Redis, TTL 600s)
 GET  /auth/figma/callback    → valida state, troca code, upsert user, redireciona com JWT
 
-POST /api/reviews            → JWT requerido — cria review + items em transaction
-GET  /api/reviews?fileKey=   → JWT requerido — lista por arquivo
-GET  /api/reviews/:id        → JWT requerido — detalhe com items
-PATCH /api/reviews/:id/items/:itemId → JWT requerido — check/uncheck + recalcula status
+POST   /api/reviews                          → JWT — cria review + items em transaction
+                                               dispara notificação Slack (fire-and-forget)
+GET    /api/reviews?fileKey=&status=         → JWT — lista paginada (limit/offset/total/hasMore)
+GET    /api/reviews/:id                      → JWT — detalhe com items
+PATCH  /api/reviews/:id/items/:itemId        → JWT — check/uncheck + recalcula status
+DELETE /api/reviews/:id                      → JWT — deleta review
+PATCH  /api/reviews/:id/archive              → JWT — arquiva review (archived_at)
 
-GET  /api/files/:fileKey/members → JWT requerido
+GET    /api/reviews/:id/public               → público, rate limit 60/min por IP
+PATCH  /api/reviews/:id/items/:itemId/public → público, rate limit 30/min por IP
+
+GET    /api/files                            → JWT — lista arquivos com stats por status
+GET    /api/files/:fileKey/reviews           → JWT — reviews de um arquivo (paginado)
+GET    /api/files/:fileKey/members           → JWT — membros do arquivo
+
+GET    /api/slack/webhook                    → JWT — retorna integração atual
+POST   /api/slack/webhook                    → JWT — cria ou atualiza webhook
+DELETE /api/slack/webhook                    → JWT — remove integração
+POST   /api/slack/test                       → JWT — envia mensagem de teste no Slack
 ```
 
 ### Schema do banco de dados
 
 ```
-files         (id UUID PK, figma_file_key UNIQUE, name, created_at, updated_at)
-users         (id UUID PK, figma_user_id UNIQUE, name, email, avatar_url, ...)
-reviews       (id UUID PK, file_id→files, frame_id, frame_name, published_by→users,
-               description, status [pending|in_progress|done],
-               snapshot_before JSONB, snapshot_after JSONB, published_at, updated_at)
-review_items  (id UUID PK, review_id→reviews, node_id, node_name, diff_type,
-               severity [high|medium|low], before_value JSONB, after_value JSONB,
-               checked_at TIMESTAMPTZ, checked_by→users)
-file_members  (file_id, user_id, role [owner|member]) PK composta
-_migrations   (id, name UNIQUE, applied_at) ← controle interno
+files             (id UUID PK, figma_file_key UNIQUE, name, created_at, updated_at)
+users             (id UUID PK, figma_user_id UNIQUE, name, email, avatar_url, ...)
+reviews           (id UUID PK, file_id→files, frame_id, frame_name, published_by→users,
+                   description, status [pending|in_progress|done],
+                   snapshot_before JSONB, snapshot_after JSONB,
+                   published_at, updated_at, archived_at TIMESTAMPTZ)
+review_items      (id UUID PK, review_id→reviews, node_id, node_name, diff_type,
+                   severity [high|medium|low], before_value JSONB, after_value JSONB,
+                   checked_at TIMESTAMPTZ, checked_by→users)
+file_members      (file_id, user_id, role [owner|member]) PK composta
+slack_integrations (id UUID PK, user_id→users UNIQUE, webhook_url TEXT,
+                    enabled BOOLEAN DEFAULT true, created_at, updated_at)
+_migrations       (id, name UNIQUE, applied_at) ← controle interno
 ```
 
 ### Status de um review
@@ -230,7 +296,16 @@ Calculado automaticamente no PATCH:
 0 checados       → pending
 1..N-1 checados  → in_progress
 todos checados   → done
+archived_at != NULL → arquivado (não aparece nas listas padrão)
 ```
+
+### Rate limiting (rotas públicas)
+
+Implementado via Redis (`rateLimit.ts`):
+- `GET /api/reviews/:id/public` → 60 req/min por IP
+- `PATCH /api/reviews/:id/items/:itemId/public` → 30 req/min por IP
+- Chave: `ratelimit:<ip>:<rota>` com TTL de 60s
+- Fail-open: se Redis indisponível, permite o request
 
 ### Migration e setup local
 
@@ -249,6 +324,8 @@ npm run dev                 # localhost:3001
 npm run test                # requer Docker
 ```
 
+Ver `api/MIGRATIONS.md` para guia completo de migrations.
+
 ---
 
 ## Dashboard Web (`web/`)
@@ -262,15 +339,23 @@ npm run test                # requer Docker
 ### Rotas
 
 ```
-/                            → redirect cookie-based
-/login                       → tela dark + botão "Entrar com Figma"
-/auth/callback               → Client Component (useSearchParams → cookie → redirect)
-/dashboard                   → 4 cards resumo + reviews recentes (Server Component)
-/dashboard/reviews           → lista com filtros + polling 30s
-/dashboard/reviews/[id]      → detalhe + checklist + polling 15s
+/                              → redirect cookie-based
+/login                         → tela dark + botão "Entrar com Figma"
+/auth/callback                 → Client Component (useSearchParams → cookie → redirect)
+/dashboard                     → 4 cards resumo + reviews recentes (Server Component)
+/dashboard/reviews             → lista com filtros + polling 30s
+/dashboard/reviews/[id]        → detalhe + checklist + polling 15s
+/dashboard/files               → grid de arquivos com badges por status
+/dashboard/files/[fileKey]     → reviews de um arquivo com filtros
+/dashboard/settings            → configurações de integração Slack
 
-/api/reviews                 → proxy server-side (token no cookie, não exposto ao client)
-/api/reviews/[reviewId]      → proxy server-side
+/api/reviews                   → proxy server-side
+/api/reviews/[reviewId]        → proxy server-side
+/api/reviews/[reviewId]/archive → proxy server-side
+/api/files                     → proxy server-side
+/api/files/[fileKey]/reviews   → proxy server-side
+/api/slack/webhook             → proxy server-side (GET/POST/DELETE)
+/api/slack/test                → proxy server-side (POST)
 ```
 
 ### Proteção de rotas
@@ -295,13 +380,15 @@ npm run test                # requer Docker
 ### Componentes principais
 
 ```
-Sidebar.tsx            ← nav (Client Component — usa usePathname/router)
+Sidebar.tsx            ← nav com 4 itens: Visão Geral, Reviews, Arquivos, Configurações
 ReviewCard.tsx         ← card com StatusBadge + ProgressBar
 ReviewDetailClient.tsx ← detalhe com polling 15s (Client Component)
 ReviewsListClient.tsx  ← lista com polling 30s + badge "N novos"
 DiffItemRow.tsx        ← checkbox → Server Action toggleReviewItem
 StatusBadge.tsx        ← pending/in_progress/done com cores
 ProgressBar.tsx        ← X de Y revisados
+FileCard.tsx           ← card de arquivo com badges; desabilitado para arquivos locais
+SlackSettings.tsx      ← Client Component: input de webhook, testar, remover
 ```
 
 ---
@@ -376,6 +463,10 @@ web/.next/
 | `lz-string` para snapshots | clientStorage do Figma tem limite de ~1MB por chave |
 | `files:read` → `current_user:read` | Figma removeu os scopes de arquivo; `current_user:read` é o único aceito hoje |
 | `redirect_uri` hardcoded no OAuth | URL dinâmica causava "Invalid redirect uri" no Figma — precisa ser exato |
+| `archived_at TIMESTAMPTZ` | Soft-delete: arquivado é filtrado por padrão mas preservado no banco |
+| Slack fire-and-forget (.catch) | Falha no webhook nunca deve bloquear a criação do review |
+| Rate limit fail-open | Redis indisponível não deve derrubar a rota pública |
+| `server-only` em auth.ts | Previne import acidental em Client Components (erros de build em vez de runtime) |
 
 ---
 
@@ -387,17 +478,22 @@ web/.next/
 - Plugin autentica automaticamente via POST /auth/plugin na inicialização
 - Dashboard protegida com Figma OAuth completo
 - Dashboard lista reviews por arquivo com polling em tempo real
-- Dev pode checar itens na dashboard (Server Action)
+- Dev pode checar itens na dashboard
 - Status calculado automaticamente: pending → in_progress → done
+- Deletar e arquivar reviews com confirmação
+- Rotas públicas de review (sem login) com rate limiting por IP
+- Dashboard organizada por arquivo do Figma (/dashboard/files)
+- Notificações Slack ao publicar review (/dashboard/settings)
 
-### Pendente
+---
 
-- [ ] Dashboard filtrada por `figma_file_key` com URL compartilhável
-- [ ] Link público de review (sem login obrigatório para dev)
-- [ ] Notificação por webhook/Slack quando designer publica
-- [ ] Múltiplos frames em um único review
-- [ ] Exportação Markdown para colar em tickets do Linear/Jira
-- [ ] Mover snapshots para o banco (multi-device)
+## Próximos passos
+
+1. Real-time via SSE (Redis pub/sub já implementado)
+2. Comentários por item de review
+3. Exportar review em Markdown
+4. Aprovação formal pelo designer
+5. Integração Jira/Linear
 
 ---
 
