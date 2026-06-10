@@ -149,7 +149,7 @@ export async function listReviews(
     ORDER BY r.published_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `
-  return { reviews: rows, total, limit, offset }
+  return { reviews: rows, total, limit, offset, hasMore: offset + rows.length < total }
 }
 
 export async function deleteReview(reviewId: string, figmaUserId: string): Promise<'deleted' | 'not_found' | 'forbidden'> {

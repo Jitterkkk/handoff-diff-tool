@@ -11,7 +11,6 @@ const envSchema = z.object({
   FIGMA_CLIENT_ID: z.string().default(''),
   FIGMA_CLIENT_SECRET: z.string().default(''),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
-  API_BASE: z.string().url().default('http://localhost:3001'),
 })
 
 function loadConfig() {

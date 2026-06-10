@@ -244,7 +244,7 @@ handoff:auth:token          → JWT do backend
 
 ```json
 {
-  "permissions": ["currentuser"],
+  "permissions": ["currentuser", "filekey"],
   "networkAccess": { "allowedDomains": ["https://handoff-api.onrender.com"] }
 }
 ```

@@ -72,6 +72,7 @@ export interface ReviewsPage {
   total: number
   limit: number
   offset: number
+  hasMore: boolean
 }
 
 export interface FileWithStats {

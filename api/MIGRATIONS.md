@@ -15,6 +15,8 @@ O sistema usa um runner caseiro em `src/db/migrate.ts`. Ao rodar:
 |---|---|---|
 | `001_initial.sql` | Cria as tabelas `files`, `users`, `reviews`, `review_items`, `file_members` e os índices principais | 1 — schema inicial |
 | `002_add_archived_at.sql` | Adiciona `archived_at TIMESTAMPTZ` em `reviews` para soft-delete de reviews arquivados | 3 — gestão de reviews |
+| `003_slack_integrations.sql` | Cria a tabela `slack_integrations` para armazenar webhooks Slack por usuário | Sprint A — notificações Slack |
+| `004_review_item_comment.sql` | Adiciona `comment TEXT` em `review_items` para comentários por item | Feature — comentários por item |
 
 ## Como rodar
 
@@ -104,7 +106,18 @@ O Render executa esse comando a cada deploy antes de subir a nova instância. A 
 | `before_value` / `after_value` | JSONB | Valores antes/depois |
 | `checked_at` | TIMESTAMPTZ | Data de aprovação pelo dev |
 | `checked_by` | UUID FK → `users` | Quem aprovou |
+| `comment` | TEXT | Comentário opcional do dev ao aprovar (Feature — comentários) |
 | `created_at` | TIMESTAMPTZ | |
+
+### `slack_integrations`
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `id` | UUID PK | Gerado com `gen_random_uuid()` |
+| `user_id` | UUID FK → `users` | Cascade delete; UNIQUE por usuário |
+| `webhook_url` | TEXT | URL do Incoming Webhook do Slack |
+| `enabled` | BOOLEAN | Padrão `true`; reservado para desativar sem deletar |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | |
 
 ### `file_members`
 | Coluna | Tipo | Descrição |
