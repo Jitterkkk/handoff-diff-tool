@@ -1,0 +1,2 @@
+ALTER TABLE review_items
+ADD COLUMN IF NOT EXISTS comment TEXT;

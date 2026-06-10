@@ -42,6 +42,7 @@ export interface DbReviewItem {
   after_value: unknown
   checked_at: Date | null
   checked_by: string | null
+  comment: string | null
   created_at: Date
 }
 
@@ -91,6 +92,7 @@ export interface PublicReviewItem {
   before_value: unknown
   after_value: unknown
   checked_at: Date | null
+  comment?: string
 }
 
 export interface PublicReview {

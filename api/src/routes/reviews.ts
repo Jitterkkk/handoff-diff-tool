@@ -57,7 +57,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const { reviewId, itemId } = ReviewItemParamsSchema.parse(req.params)
     const body = PatchReviewItemBodySchema.parse(req.body)
-    const review = await patchReviewItem(reviewId, itemId, body.checked, body.checkedBy)
+    const review = await patchReviewItem(reviewId, itemId, body.checked, body.checkedBy, body.comment)
     if (!review) return reply.code(404).send({ error: 'Review or item not found' })
     return reply.send(review)
   })
@@ -105,7 +105,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
     } catch { /* Redis unavailable — allow */ }
     const { reviewId, itemId } = ReviewItemParamsSchema.parse(req.params)
     const body = PatchPublicReviewItemBodySchema.parse(req.body)
-    const item = await patchPublicReviewItem(reviewId, itemId, body.checked)
+    const item = await patchPublicReviewItem(reviewId, itemId, body.checked, body.comment)
     if (!item) return reply.code(404).send({ error: 'Review item not found' })
     return reply.send(item)
   })

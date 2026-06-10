@@ -222,7 +222,7 @@ export async function getPublicReview(reviewId: string): Promise<PublicReview | 
   if (!review) return null
 
   const items = await sql<DbReviewItem[]>`
-    SELECT id, node_id, node_name, diff_type, severity, before_value, after_value, checked_at
+    SELECT id, node_id, node_name, diff_type, severity, before_value, after_value, checked_at, comment
     FROM review_items
     WHERE review_id = ${reviewId}
     ORDER BY created_at ASC
@@ -245,6 +245,7 @@ export async function getPublicReview(reviewId: string): Promise<PublicReview | 
       before_value: i.before_value,
       after_value: i.after_value,
       checked_at: i.checked_at,
+      comment: i.comment ?? undefined,
     })),
   }
 }
@@ -253,10 +254,13 @@ export async function patchPublicReviewItem(
   reviewId: string,
   itemId: string,
   checked: boolean,
+  comment?: string,
 ): Promise<PublicReviewItem | null> {
   const updated = await sql<DbReviewItem[]>`
     UPDATE review_items
-    SET checked_at = ${checked ? sql`NOW()` : sql`NULL`}
+    SET
+      checked_at = ${checked ? sql`NOW()` : sql`NULL`},
+      comment = COALESCE(${comment ?? null}, comment)
     WHERE id = ${itemId} AND review_id = ${reviewId}
     RETURNING *
   `
@@ -289,6 +293,7 @@ export async function patchPublicReviewItem(
     before_value: item.before_value,
     after_value: item.after_value,
     checked_at: item.checked_at,
+    comment: item.comment ?? undefined,
   }
 }
 
@@ -297,6 +302,7 @@ export async function patchReviewItem(
   itemId: string,
   checked: boolean,
   checkedBy?: { figmaUserId: string; name: string },
+  comment?: string,
 ): Promise<ReviewDetail | null> {
   let checkerId: string | null = null
   if (checkedBy) {
@@ -308,7 +314,8 @@ export async function patchReviewItem(
     UPDATE review_items
     SET
       checked_at = ${checked ? sql`NOW()` : sql`NULL`},
-      checked_by = ${checked && checkerId ? checkerId : sql`NULL`}
+      checked_by = ${checked && checkerId ? checkerId : sql`NULL`},
+      comment = COALESCE(${comment ?? null}, comment)
     WHERE id = ${itemId} AND review_id = ${reviewId}
   `
 

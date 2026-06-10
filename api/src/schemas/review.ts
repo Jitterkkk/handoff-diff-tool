@@ -37,10 +37,12 @@ export const PatchReviewItemBodySchema = z.object({
     figmaUserId: z.string().min(1),
     name: z.string().min(1),
   }).optional(),
+  comment: z.string().max(500).optional(),
 })
 
 export const PatchPublicReviewItemBodySchema = z.object({
   checked: z.boolean(),
+  comment: z.string().max(500).optional(),
 })
 
 export const ReviewParamsSchema = z.object({
