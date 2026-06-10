@@ -13,12 +13,40 @@ const SEVERITY_HEADINGS = {
   low: 'Baixa prioridade',
 } as const
 
-function formatValueMd(v: unknown): string {
-  if (isRgb(v)) return valueToHex(v)
-  if (isSize(v)) return `${Math.round(v.width)}×${Math.round(v.height)}`
-  if (isPosition(v)) return `x: ${Math.round(v.x)}, y: ${Math.round(v.y)}`
-  if (typeof v === 'string') return v.slice(0, 120)
-  return String(v).slice(0, 120)
+export function formatValueMd(v: unknown): string | null {
+  if (v === null || v === undefined) return null
+
+  // Tenta parsear se for string JSON
+  let parsed: unknown = v
+  if (typeof v === 'string') {
+    try {
+      parsed = JSON.parse(v)
+    } catch {
+      return v || null
+    }
+  }
+
+  // Array (ex: fills) → pega o primeiro elemento
+  if (Array.isArray(parsed)) {
+    if (parsed.length === 0) return null
+    return formatValueMd(parsed[0])
+  }
+
+  // Objeto com color (fill Figma) → extrai a cor recursivamente
+  if (typeof parsed === 'object' && parsed !== null) {
+    const p = parsed as Record<string, unknown>
+    if ('color' in p && typeof p.color === 'object') {
+      return formatValueMd(p.color)
+    }
+  }
+
+  // Tipos estruturados após parse
+  if (isRgb(parsed)) return valueToHex(parsed)
+  if (isSize(parsed)) return `${Math.round(parsed.width)}×${Math.round(parsed.height)}`
+  if (isPosition(parsed)) return `x: ${Math.round(parsed.x)}, y: ${Math.round(parsed.y)}`
+
+  const str = String(parsed)
+  return str || null
 }
 
 function formatDate(iso: string): string {
@@ -40,13 +68,13 @@ function itemLine(item: ReviewItem): string {
   }
 
   const type = item.diff_type.toUpperCase()
-  const hasBefore = item.before_value != null
-  const hasAfter = item.after_value != null
   const skipValues = type === 'REMOVED' || type === 'ADDED'
-  if (!skipValues && (hasBefore || hasAfter)) {
-    const before = hasBefore ? formatValueMd(item.before_value) : '—'
-    const after = hasAfter ? formatValueMd(item.after_value) : '—'
-    lines.push(`  > Antes: ${before} → Depois: ${after}`)
+  if (!skipValues) {
+    const before = item.before_value != null ? formatValueMd(item.before_value) : null
+    const after = item.after_value != null ? formatValueMd(item.after_value) : null
+    if (before !== null || after !== null) {
+      lines.push(`  > Antes: ${before ?? '—'} → Depois: ${after ?? '—'}`)
+    }
   }
 
   return lines.join('\n')
@@ -57,7 +85,7 @@ export function generateMarkdown(review: ReviewDetail): string {
 
   lines.push(`# Review: ${review.frame_name}`)
   lines.push('')
-  lines.push(`**Arquivo:** ${review.file_name}`)
+  lines.push(`**Arquivo:** ${review.file_name || review.file_key || 'Não informado'}`)
   lines.push(`**Publicado por:** ${review.published_by_name}`)
   lines.push(`**Data:** ${formatDate(review.published_at)}`)
   lines.push(`**Status:** ${STATUS_LABELS[review.status]}`)
