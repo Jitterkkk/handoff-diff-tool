@@ -56,6 +56,15 @@ Plugin para Figma que detecta automaticamente o que mudou entre versões de uma 
 - Botão de teste, mascaramento do URL, remoção com confirmação
 - Item "Configurações" na sidebar
 
+### Comentários por item de review
+- Migration 004: coluna `comment TEXT` em review_items
+- Backend: `patchReviewItem` e `patchPublicReviewItem` aceitam `comment?: string`
+- COALESCE preserva comentário existente se não passado novo valor
+- `getReview` e `getPublicReview` retornam `comment` em cada item
+- Dashboard: checkbox para marcar abre campo de texto opcional com botões "Confirmar" e "Pular" antes de enviar o PATCH
+- Página pública: mesmo comportamento com `confirmingId` global (um item por vez)
+- Exibe 💬 "texto" abaixo do item quando `comment` está preenchido
+
 ---
 
 ## Monorepo — Estrutura
@@ -489,11 +498,10 @@ web/.next/
 
 ## Próximos passos
 
-1. Real-time via SSE (Redis pub/sub já implementado)
-2. Comentários por item de review
-3. Exportar review em Markdown
-4. Aprovação formal pelo designer
-5. Integração Jira/Linear
+1. Exportar review em Markdown
+2. Real-time via SSE (Redis pub/sub já implementado)
+3. Aprovação formal pelo designer
+4. Integração Jira/Linear
 
 ---
 
