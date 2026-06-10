@@ -61,6 +61,7 @@ export interface ReviewSummary {
 
 export interface ReviewDetail extends ReviewSummary {
   file_key: string
+  file_name: string
   items: DbReviewItem[]
 }
 

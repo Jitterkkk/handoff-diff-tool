@@ -14,11 +14,10 @@ const SEVERITY_HEADINGS = {
 } as const
 
 function formatValueMd(v: unknown): string {
-  if (v === null || v === undefined) return '—'
   if (isRgb(v)) return valueToHex(v)
   if (isSize(v)) return `${Math.round(v.width)}×${Math.round(v.height)}`
   if (isPosition(v)) return `x: ${Math.round(v.x)}, y: ${Math.round(v.y)}`
-  if (typeof v === 'string') return `"${v.slice(0, 120)}"`
+  if (typeof v === 'string') return v.slice(0, 120)
   return String(v).slice(0, 120)
 }
 
@@ -40,9 +39,11 @@ function itemLine(item: ReviewItem): string {
     lines.push(`  > ${item.comment}`)
   }
 
+  const type = item.diff_type.toUpperCase()
   const hasBefore = item.before_value != null
   const hasAfter = item.after_value != null
-  if (hasBefore || hasAfter) {
+  const skipValues = type === 'REMOVED' || type === 'ADDED'
+  if (!skipValues && (hasBefore || hasAfter)) {
     const before = hasBefore ? formatValueMd(item.before_value) : '—'
     const after = hasAfter ? formatValueMd(item.after_value) : '—'
     lines.push(`  > Antes: ${before} → Depois: ${after}`)
@@ -56,7 +57,7 @@ export function generateMarkdown(review: ReviewDetail): string {
 
   lines.push(`# Review: ${review.frame_name}`)
   lines.push('')
-  lines.push(`**Arquivo:** ${review.file_key}`)
+  lines.push(`**Arquivo:** ${review.file_name}`)
   lines.push(`**Publicado por:** ${review.published_by_name}`)
   lines.push(`**Data:** ${formatDate(review.published_at)}`)
   lines.push(`**Status:** ${STATUS_LABELS[review.status]}`)
