@@ -32,6 +32,8 @@ interface Props {
 export function PublicReviewClient({ initialReview, reviewId }: Props) {
   const [review, setReview] = useState(initialReview)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [commentText, setCommentText] = useState('')
 
   const fetchLatest = useCallback(async () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
@@ -55,8 +57,9 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
     }
   }, [fetchLatest])
 
-  async function handleToggle(item: PublicReviewItem) {
-    const newChecked = item.checked_at === null
+  async function doToggle(item: PublicReviewItem, newChecked: boolean, comment?: string) {
+    setConfirmingId(null)
+    setCommentText('')
     setPendingIds(s => new Set(s).add(item.id))
 
     const optimisticItems = review.items.map(i =>
@@ -65,10 +68,12 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
     setReview(r => ({ ...r, items: optimisticItems, status: deriveStatus(optimisticItems) }))
 
     try {
+      const body: Record<string, unknown> = { checked: newChecked }
+      if (comment !== undefined) body.comment = comment
       const res = await fetch(`${API_BASE}/api/reviews/${reviewId}/items/${item.id}/public`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checked: newChecked }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         const updated: PublicReviewItem = await res.json()
@@ -85,6 +90,23 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
     } finally {
       setPendingIds(s => { const n = new Set(s); n.delete(item.id); return n })
     }
+  }
+
+  function handleCheckboxClick(item: PublicReviewItem) {
+    if (item.checked_at !== null) {
+      doToggle(item, false)
+    } else {
+      setConfirmingId(item.id)
+      setCommentText('')
+    }
+  }
+
+  function handleConfirm(item: PublicReviewItem) {
+    doToggle(item, true, commentText.trim() || undefined)
+  }
+
+  function handleSkip(item: PublicReviewItem) {
+    doToggle(item, true)
   }
 
   const checkedCount = review.items.filter(i => i.checked_at !== null).length
@@ -164,6 +186,7 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                 {items.map(item => {
                   const isChecked = item.checked_at !== null
                   const isPending = pendingIds.has(item.id)
+                  const isConfirming = confirmingId === item.id
                   const cleanName = item.node_name.replace(/^[\s–\-]+/, '')
 
                   return (
@@ -177,10 +200,9 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                         isPending && 'opacity-60',
                       )}
                     >
-                      {/* Checkbox com área de toque maior */}
                       <button
-                        onClick={() => handleToggle(item)}
-                        disabled={isPending}
+                        onClick={() => handleCheckboxClick(item)}
+                        disabled={isPending || (confirmingId !== null && !isConfirming)}
                         className="-m-1 p-1 shrink-0 mt-0.5"
                         aria-label={isChecked ? 'Desmarcar item' : 'Marcar como revisado'}
                       >
@@ -194,7 +216,6 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                         </span>
                       </button>
 
-                      {/* Conteúdo */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -220,6 +241,40 @@ export function PublicReviewClient({ initialReview, reviewId }: Props) {
                           afterValue={item.after_value}
                           nodeName={cleanName}
                         />
+
+                        {isConfirming && (
+                          <div className="mt-2 space-y-2">
+                            <input
+                              type="text"
+                              value={commentText}
+                              onChange={e => setCommentText(e.target.value)}
+                              placeholder="Deixe uma nota opcional (ex: ajustei o padding)..."
+                              className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
+                              onKeyDown={e => { if (e.key === 'Enter') handleConfirm(item) }}
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleConfirm(item)}
+                                className="px-3 py-1 text-xs font-medium rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
+                              >
+                                Confirmar
+                              </button>
+                              <button
+                                onClick={() => handleSkip(item)}
+                                className="px-3 py-1 text-xs font-medium rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                              >
+                                Pular
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {!isConfirming && item.comment && (
+                          <p className="mt-1.5 text-xs italic text-gray-400 dark:text-gray-500">
+                            💬 &ldquo;{item.comment}&rdquo;
+                          </p>
+                        )}
                       </div>
                     </div>
                   )

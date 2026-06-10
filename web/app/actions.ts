@@ -8,11 +8,12 @@ export async function toggleReviewItem(
   reviewId: string,
   itemId: string,
   checked: boolean,
+  comment?: string,
 ): Promise<void> {
   const store = await cookies()
   const token = store.get('handoff_token')?.value
   if (!token) throw new Error('Not authenticated')
-  await checkItem({ token }, reviewId, itemId, checked)
+  await checkItem({ token }, reviewId, itemId, checked, comment)
   revalidatePath(`/dashboard/reviews/${reviewId}`)
 }
 

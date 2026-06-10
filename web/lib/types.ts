@@ -43,6 +43,7 @@ export interface ReviewItem {
   after_value: unknown
   checked_at: string | null
   checked_by: string | null
+  comment?: string
 }
 
 export interface ReviewDetail extends ReviewSummary {
@@ -59,6 +60,7 @@ export interface PublicReviewItem {
   before_value: unknown
   after_value: unknown
   checked_at: string | null
+  comment?: string
 }
 
 export interface PublicReview {

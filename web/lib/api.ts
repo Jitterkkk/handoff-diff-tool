@@ -59,11 +59,12 @@ export async function checkItem(
   reviewId: string,
   itemId: string,
   checked: boolean,
+  comment?: string,
 ): Promise<ReviewDetail> {
   return request<ReviewDetail>(`/api/reviews/${reviewId}/items/${itemId}`, {
     ...opts,
     method: 'PATCH',
-    body: JSON.stringify({ checked }),
+    body: JSON.stringify({ checked, ...(comment !== undefined ? { comment } : {}) }),
   })
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { diffLabel, BeforeAfterPreview, FigmaLink } from '@/lib/diffFormatters'
 import type { ReviewItem } from '@/lib/types'
@@ -14,12 +14,35 @@ interface Props {
 
 export function DiffItemRow({ item, reviewId, fileKey }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [confirmingComment, setConfirmingComment] = useState(false)
+  const [commentText, setCommentText] = useState('')
   const isChecked = item.checked_at !== null
 
+  function handleCheckboxClick() {
+    if (isChecked) {
+      startTransition(async () => {
+        await toggleReviewItem(reviewId, item.id, false)
+      })
+    } else {
+      setConfirmingComment(true)
+      setCommentText('')
+    }
+  }
 
-  function handleToggle() {
+  function handleConfirm() {
+    const comment = commentText.trim() || undefined
+    setConfirmingComment(false)
+    setCommentText('')
     startTransition(async () => {
-      await toggleReviewItem(reviewId, item.id, !isChecked)
+      await toggleReviewItem(reviewId, item.id, true, comment)
+    })
+  }
+
+  function handleSkip() {
+    setConfirmingComment(false)
+    setCommentText('')
+    startTransition(async () => {
+      await toggleReviewItem(reviewId, item.id, true)
     })
   }
 
@@ -34,8 +57,8 @@ export function DiffItemRow({ item, reviewId, fileKey }: Props) {
       )}
     >
       <button
-        onClick={handleToggle}
-        disabled={isPending}
+        onClick={handleCheckboxClick}
+        disabled={isPending || confirmingComment}
         className="-m-1 p-1 shrink-0 mt-0.5"
         aria-label={isChecked ? 'Desmarcar item' : 'Marcar como revisado'}
       >
@@ -74,6 +97,40 @@ export function DiffItemRow({ item, reviewId, fileKey }: Props) {
           afterValue={item.after_value}
           nodeName={item.node_name.replace(/^[\s–\-]+/, '')}
         />
+
+        {confirmingComment && (
+          <div className="mt-2 space-y-2">
+            <input
+              type="text"
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              placeholder="Deixe uma nota opcional (ex: ajustei o padding)..."
+              className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-colors"
+              onKeyDown={e => { if (e.key === 'Enter') handleConfirm() }}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleConfirm}
+                className="px-3 py-1 text-xs font-medium rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={handleSkip}
+                className="px-3 py-1 text-xs font-medium rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                Pular
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!confirmingComment && item.comment && (
+          <p className="mt-1.5 text-xs italic text-gray-400 dark:text-gray-500">
+            💬 &ldquo;{item.comment}&rdquo;
+          </p>
+        )}
       </div>
     </div>
   )
