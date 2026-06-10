@@ -56,6 +56,15 @@ Plugin para Figma que detecta automaticamente o que mudou entre versões de uma 
 - Botão de teste, mascaramento do URL, remoção com confirmação
 - Item "Configurações" na sidebar
 
+### Feature: Exportar review em Markdown
+- Botão "↓ Exportar .md" no header do detalhe do review
+- Gera arquivo `handoff-[frame-slug]-[data].md` para download
+- Formato: header com metadados, itens agrupados por severidade, checkboxes marcados/desmarcados, comentários como blockquote
+- `formatValueMd` parseia JSON do Figma: RGB→hex, size→NxM, position→x/y, arrays de fills tratados recursivamente
+- Itens REMOVED e ADDED omitem linha Antes→Depois (redundante)
+- `file_name` com fallback para `file_key` e "Não informado" para reviews antigos
+- Campo `file_name` adicionado ao tipo `ReviewDetail` no backend e frontend
+
 ### Comentários por item de review
 - Migration 004: coluna `comment TEXT` em review_items
 - Backend: `patchReviewItem` e `patchPublicReviewItem` aceitam `comment?: string`
@@ -498,10 +507,9 @@ web/.next/
 
 ## Próximos passos
 
-1. Exportar review em Markdown
-2. Real-time via SSE (Redis pub/sub já implementado)
-3. Aprovação formal pelo designer
-4. Integração Jira/Linear
+1. Real-time via SSE (Redis pub/sub já implementado)
+2. Aprovação formal pelo designer
+3. Integração Jira/Linear
 
 ---
 
