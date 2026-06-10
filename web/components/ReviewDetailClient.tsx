@@ -9,6 +9,7 @@ import { DiffItemRow } from './DiffItemRow'
 import { ShareButton } from './ShareButton'
 import { ReviewCardActions } from './ReviewCardActions'
 import { timeAgo } from '@/lib/utils'
+import { generateMarkdown } from '@/lib/exportMarkdown'
 
 const SEVERITY_LABELS: Record<Severity, string> = {
   high: 'Alta prioridade',
@@ -57,6 +58,19 @@ export function ReviewDetailClient({ initialReview, reviewId }: Props) {
     }
   }, [fetchLatest])
 
+  function handleExport() {
+    const content = generateMarkdown(review)
+    const blob = new Blob([content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const slug = review.frame_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    const date = new Date().toISOString().slice(0, 10)
+    a.href = url
+    a.download = `handoff-${slug}-${date}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const bySeverity: Record<Severity, ReviewItem[]> = { high: [], medium: [], low: [] }
   for (const item of review.items ?? []) bySeverity[item.severity].push(item)
 
@@ -80,6 +94,13 @@ export function ReviewDetailClient({ initialReview, reviewId }: Props) {
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{review.frame_name}</h1>
           <div className="flex items-center gap-3 shrink-0">
             <ShareButton reviewId={reviewId} />
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <span>↓</span>
+              <span>Exportar .md</span>
+            </button>
             <StatusBadge status={review.status} />
             <ReviewCardActions reviewId={reviewId} />
           </div>
