@@ -1,6 +1,7 @@
 {
   "name": "Handoff Diff Tool",
-  "id": "handoff-diff-tool",
+  "id": "1648447283949612543",
+  "documentAccess": "dynamic-page",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/index.html",
