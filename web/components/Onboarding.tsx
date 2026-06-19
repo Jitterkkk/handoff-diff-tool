@@ -2,7 +2,7 @@ const steps = [
   {
     title: 'Instale o plugin',
     description:
-      'Abra o Figma, vá em Plugins → Development → Import plugin from manifest e selecione o arquivo manifest.json do repositório.',
+      "Abra o Figma, vá em Plugins → Procurar plugins e busque por 'Handoff Diff Tool'. Clique em Instalar.",
   },
   {
     title: 'Publique um review',
