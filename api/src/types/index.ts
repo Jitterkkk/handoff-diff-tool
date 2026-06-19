@@ -12,6 +12,9 @@ export interface DbUser {
   name: string
   email: string | null
   avatar_url: string | null
+  email_verified: string | null
+  password_hash: string | null
+  auth_provider: string
   created_at: Date
   updated_at: Date
 }
@@ -95,6 +98,19 @@ export interface PublicReviewItem {
   after_value: unknown
   checked_at: Date | null
   comment?: string
+}
+
+export interface Workspace {
+  id: string
+  name: string
+  slug: string
+  createdBy: string
+  createdAt: string
+}
+
+export interface WorkspaceWithRole extends Workspace {
+  role: 'owner' | 'member'
+  memberCount: number
 }
 
 export interface PublicReview {

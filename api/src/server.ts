@@ -9,6 +9,7 @@ import { reviewsRoutes } from './routes/reviews.js'
 import { filesRoutes } from './routes/files.js'
 import { authRoutes } from './routes/auth.js'
 import { slackRoutes } from './routes/slack.js'
+import { workspaceRoutes } from './routes/workspaces.js'
 import { ZodError } from 'zod'
 
 declare module '@fastify/jwt' {
@@ -68,6 +69,7 @@ export async function buildApp() {
   await app.register(reviewsRoutes)
   await app.register(filesRoutes)
   await app.register(slackRoutes)
+  await app.register(workspaceRoutes)
 
   return app
 }

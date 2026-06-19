@@ -4,11 +4,23 @@ import { sql } from '../db/index.js'
 import { redis } from '../redis/index.js'
 import { config } from '../config.js'
 import type { DbUser } from '../types/index.js'
+import { registerWithEmail, loginWithEmail, EmailAlreadyExistsError } from '../services/authService.js'
 
 const PluginAuthBodySchema = z.object({
   figmaUserId: z.string().min(1),
   name: z.string().min(1),
   avatarUrl: z.string().url().optional(),
+})
+
+const RegisterBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  name: z.string().min(1),
+})
+
+const LoginBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
 })
 
 interface FigmaTokenResponse {
@@ -155,4 +167,34 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.redirect(`${config.FRONTEND_URL}/auth/callback?token=${jwt}`)
     },
   )
+
+  // ── POST /auth/register — registro com email/senha ───────────────────────
+  app.post('/auth/register', async (req, reply) => {
+    const { email, password, name } = RegisterBodySchema.parse(req.body)
+    try {
+      const user = await registerWithEmail(email, password, name)
+      const token = app.jwt.sign(
+        { figmaUserId: user.figmaUserId, name: user.name },
+        { expiresIn: '30d' },
+      )
+      return reply.code(201).send({ token })
+    } catch (err) {
+      if (err instanceof EmailAlreadyExistsError) {
+        return reply.code(409).send({ error: 'Email already registered' })
+      }
+      throw err
+    }
+  })
+
+  // ── POST /auth/login — login com email/senha ──────────────────────────────
+  app.post('/auth/login', async (req, reply) => {
+    const { email, password } = LoginBodySchema.parse(req.body)
+    const user = await loginWithEmail(email, password)
+    if (!user) return reply.code(401).send({ error: 'Invalid credentials' })
+    const token = app.jwt.sign(
+      { figmaUserId: user.figmaUserId, name: user.name },
+      { expiresIn: '30d' },
+    )
+    return reply.send({ token })
+  })
 }
