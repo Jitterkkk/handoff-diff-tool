@@ -10,6 +10,7 @@ import {
 } from '../schemas/review.js'
 import { publishReview, listReviews, getReview, patchReviewItem, getPublicReview, patchPublicReviewItem, deleteReview, archiveReview } from '../services/reviewService.js'
 import { getWebhook, sendNotification } from '../services/slackService.js'
+import { getWorkspaceSlackWebhook } from '../services/workspaceService.js'
 import { redis } from '../redis/index.js'
 import { rateLimit } from '../middleware/rateLimit.js'
 
@@ -19,15 +20,18 @@ export async function reviewsRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const body = PublishReviewBodySchema.parse(req.body)
     const review = await publishReview(body)
+    const notifyPayload = {
+      reviewId: review.id,
+      frameName: review.frame_name,
+      fileName: body.fileName,
+      publishedBy: req.user.name ?? 'Designer',
+      itemCount: review.items.length,
+    }
     const webhookUrl = await getWebhook(req.user.figmaUserId)
-    if (webhookUrl) {
-      sendNotification(webhookUrl, {
-        reviewId: review.id,
-        frameName: review.frame_name,
-        fileName: body.fileName,
-        publishedBy: req.user.name ?? 'Designer',
-        itemCount: review.items.length,
-      }).catch(() => {})
+    if (webhookUrl) sendNotification(webhookUrl, notifyPayload).catch(() => {})
+    if (body.workspaceId) {
+      const wsWebhook = await getWorkspaceSlackWebhook(body.workspaceId)
+      if (wsWebhook) sendNotification(wsWebhook, notifyPayload).catch(() => {})
     }
     return reply.code(201).send(review)
   })

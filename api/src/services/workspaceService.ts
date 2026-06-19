@@ -110,3 +110,100 @@ export async function joinByInvite(token: string, userId: string): Promise<Works
   `
   return ws ? toWorkspace(ws) : null
 }
+
+async function requireOwner(workspaceId: string, userId: string): Promise<void> {
+  const [row] = await sql<{ role: string }[]>`
+    SELECT role FROM workspace_members
+    WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+  `
+  if (!row) throw Object.assign(new Error('Not a member'), { statusCode: 403 })
+  if (row.role !== 'owner') throw Object.assign(new Error('Only owner can perform this action'), { statusCode: 403 })
+}
+
+async function requireMember(workspaceId: string, userId: string): Promise<void> {
+  const [row] = await sql`
+    SELECT 1 FROM workspace_members
+    WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
+  `
+  if (!row) throw Object.assign(new Error('Not a member'), { statusCode: 403 })
+}
+
+export async function listMembers(
+  workspaceId: string,
+  requestingUserId: string,
+): Promise<import('../types/index.js').WorkspaceMember[]> {
+  await requireMember(workspaceId, requestingUserId)
+
+  type DbMember = { id: string; name: string; email: string | null; role: 'owner' | 'member'; joined_at: Date }
+  const members = await sql<DbMember[]>`
+    SELECT u.id, u.name, u.email, wm.role, wm.joined_at
+    FROM workspace_members wm
+    JOIN users u ON u.id = wm.user_id
+    WHERE wm.workspace_id = ${workspaceId}
+    ORDER BY wm.joined_at ASC
+  `
+  return members.map(m => ({
+    id: m.id,
+    name: m.name,
+    email: m.email,
+    role: m.role,
+    joinedAt: m.joined_at.toISOString(),
+  }))
+}
+
+export async function removeMember(
+  workspaceId: string,
+  targetUserId: string,
+  requestingUserId: string,
+): Promise<void> {
+  await requireOwner(workspaceId, requestingUserId)
+  if (targetUserId === requestingUserId) {
+    throw Object.assign(new Error('Cannot remove yourself'), { statusCode: 400 })
+  }
+  await sql`
+    DELETE FROM workspace_members
+    WHERE workspace_id = ${workspaceId} AND user_id = ${targetUserId}
+  `
+}
+
+export async function updateMemberRole(
+  workspaceId: string,
+  targetUserId: string,
+  role: 'owner' | 'member',
+  requestingUserId: string,
+): Promise<void> {
+  await requireOwner(workspaceId, requestingUserId)
+  if (targetUserId === requestingUserId) {
+    throw Object.assign(new Error('Cannot change your own role'), { statusCode: 400 })
+  }
+  await sql`
+    UPDATE workspace_members
+    SET role = ${role}
+    WHERE workspace_id = ${workspaceId} AND user_id = ${targetUserId}
+  `
+}
+
+export async function deleteWorkspace(workspaceId: string, requestingUserId: string): Promise<void> {
+  await requireOwner(workspaceId, requestingUserId)
+  await sql`DELETE FROM workspaces WHERE id = ${workspaceId}`
+}
+
+export async function updateSlackWebhook(
+  workspaceId: string,
+  webhookUrl: string,
+  requestingUserId: string,
+): Promise<void> {
+  await requireOwner(workspaceId, requestingUserId)
+  await sql`
+    UPDATE workspaces
+    SET slack_webhook_url = ${webhookUrl}, updated_at = NOW()
+    WHERE id = ${workspaceId}
+  `
+}
+
+export async function getWorkspaceSlackWebhook(workspaceId: string): Promise<string | null> {
+  const [row] = await sql<{ slack_webhook_url: string | null }[]>`
+    SELECT slack_webhook_url FROM workspaces WHERE id = ${workspaceId}
+  `
+  return row?.slack_webhook_url ?? null
+}

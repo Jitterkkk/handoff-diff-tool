@@ -77,6 +77,14 @@ export interface WorkspaceWithRole extends Workspace {
   memberCount: number
 }
 
+export interface WorkspaceMember {
+  id: string
+  name: string
+  email: string | null
+  role: 'owner' | 'member'
+  joinedAt: string
+}
+
 export interface PublicReview {
   id: string
   file_key: string

@@ -1,4 +1,4 @@
-import type { ReviewSummary, ReviewDetail, ReviewsPage, PublicReview, FileWithStats, Workspace, WorkspaceWithRole } from './types'
+import type { ReviewSummary, ReviewDetail, ReviewsPage, PublicReview, FileWithStats, Workspace, WorkspaceWithRole, WorkspaceMember } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://handoff-api.onrender.com'
 
@@ -124,6 +124,42 @@ export async function generateInvite(
 
 export async function joinWorkspace(opts: ApiOptions, inviteToken: string): Promise<Workspace> {
   return request<Workspace>(`/api/workspaces/join/${inviteToken}`, { ...opts, method: 'POST' })
+}
+
+export async function getMe(opts: ApiOptions): Promise<{ id: string; name: string; email: string | null }> {
+  return request<{ id: string; name: string; email: string | null }>('/auth/me', opts)
+}
+
+export async function getWorkspaceMembers(opts: ApiOptions, workspaceId: string): Promise<WorkspaceMember[]> {
+  return request<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`, opts)
+}
+
+export async function removeWorkspaceMember(opts: ApiOptions, workspaceId: string, userId: string): Promise<void> {
+  await request<unknown>(`/api/workspaces/${workspaceId}/members/${userId}`, { ...opts, method: 'DELETE' })
+}
+
+export async function updateWorkspaceMemberRole(
+  opts: ApiOptions,
+  workspaceId: string,
+  userId: string,
+  role: 'owner' | 'member',
+): Promise<void> {
+  await request<unknown>(`/api/workspaces/${workspaceId}/members/${userId}`, {
+    ...opts,
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  })
+}
+
+export async function deleteWorkspace(opts: ApiOptions, workspaceId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${opts.token}` },
+    cache: 'no-store',
+  })
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`HTTP ${res.status}`)
+  }
 }
 
 export async function getFileReviews(
