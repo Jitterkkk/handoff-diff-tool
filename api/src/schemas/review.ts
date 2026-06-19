@@ -21,6 +21,7 @@ export const PublishReviewBodySchema = z.object({
     email: z.string().email().optional(),
     avatarUrl: z.string().url().optional(),
   }),
+  workspaceId: z.string().uuid().optional(),
   items: z.array(DiffResultSchema),
 })
 

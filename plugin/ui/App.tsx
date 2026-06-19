@@ -3,6 +3,7 @@ import type {
   FrameMeta,
   PluginToUIMessage,
   UIToPluginMessage,
+  WorkspaceSummary,
 } from '../shared/types';
 import { FrameSelector } from './components/FrameSelector';
 
@@ -78,6 +79,8 @@ function post(msg: UIToPluginMessage): void {
 export function App() {
   const [state, dispatch] = useReducer(reducer, initial);
   const [figmaFileUrl, setFigmaFileUrl] = useState('');
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [publishStatus, setPublishStatus] = useState('');
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetFeedback, setResetFeedback] = useState('');
@@ -123,6 +126,10 @@ export function App() {
           break;
         case 'SETTINGS':
           if (msg.figmaFileUrl) setFigmaFileUrl(msg.figmaFileUrl);
+          if (msg.selectedWorkspaceId !== undefined) setSelectedWorkspaceId(msg.selectedWorkspaceId);
+          break;
+        case 'WORKSPACES_LOADED':
+          setWorkspaces(msg.workspaces);
           break;
         case 'AUTH_STATUS':
           dispatch({ type: 'AUTH_STATUS', authenticated: msg.authenticated, userName: msg.userName });
@@ -201,6 +208,25 @@ export function App() {
             <p style={styles.baselineError}>{baselineError}</p>
           )}
           <div style={styles.content}>
+            {workspaces.length > 0 && (
+              <div style={styles.workspaceField}>
+                <label style={styles.urlLabel}>Projeto</label>
+                <select
+                  style={styles.workspaceSelect}
+                  value={selectedWorkspaceId ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value || null;
+                    setSelectedWorkspaceId(val);
+                    post({ type: 'SELECT_WORKSPACE', workspaceId: val });
+                  }}
+                >
+                  <option value="">Sem projeto</option>
+                  {workspaces.map(ws => (
+                    <option key={ws.id} value={ws.id}>{ws.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={styles.urlField}>
               <label style={styles.urlLabel}>URL do arquivo (opcional)</label>
               <input
@@ -502,6 +528,24 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     fontSize: 12,
     fontWeight: 600,
+    cursor: 'pointer',
+  },
+  workspaceField: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  workspaceSelect: {
+    width: '100%',
+    padding: '7px 10px',
+    fontSize: 11,
+    color: '#333',
+    background: '#f7f7f7',
+    border: '1px solid #e0e0e0',
+    borderRadius: 6,
+    outline: 'none',
+    boxSizing: 'border-box' as const,
     cursor: 'pointer',
   },
 };

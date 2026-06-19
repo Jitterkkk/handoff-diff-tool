@@ -51,15 +51,16 @@ const SETTINGS_KEY = 'handoff:settings';
 
 export interface Settings {
   includePosition: boolean;
+  selectedWorkspaceId?: string | null;
 }
 
-const DEFAULT_SETTINGS: Settings = { includePosition: false };
+const DEFAULT_SETTINGS: Settings = { includePosition: false, selectedWorkspaceId: null };
 
 export async function loadSettings(): Promise<Settings> {
   const value: unknown = await figma.clientStorage.getAsync(SETTINGS_KEY);
   if (!value || typeof value !== 'object') return { ...DEFAULT_SETTINGS };
   const s = value as Partial<Settings>;
-  return { includePosition: s.includePosition ?? false };
+  return { includePosition: s.includePosition ?? false, selectedWorkspaceId: s.selectedWorkspaceId ?? null };
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {

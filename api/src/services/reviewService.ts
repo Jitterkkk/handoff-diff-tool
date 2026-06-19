@@ -26,7 +26,20 @@ function computeStatus(items: DbReviewItem[]): ReviewStatus {
 }
 
 export async function publishReview(body: PublishReviewBody): Promise<ReviewDetail> {
-  const { fileKey, fileName, frameId, frameName, description, publishedBy, items } = body
+  const { fileKey, fileName, frameId, frameName, description, publishedBy, items, workspaceId } = body
+
+  if (workspaceId) {
+    const [member] = await sql<{ workspace_id: string }[]>`
+      SELECT wm.workspace_id
+      FROM workspace_members wm
+      JOIN users u ON u.id = wm.user_id
+      WHERE wm.workspace_id = ${workspaceId}
+        AND u.figma_user_id = ${publishedBy.figmaUserId}
+    `
+    if (!member) {
+      throw Object.assign(new Error('Not a member of this workspace'), { statusCode: 403 })
+    }
+  }
 
   const [fileRow] = await sql`
     INSERT INTO files (figma_file_key, name)
@@ -46,8 +59,8 @@ export async function publishReview(body: PublishReviewBody): Promise<ReviewDeta
 
   const review = await sql.begin(async (tx) => {
     const [rev] = await tx<DbReview[]>`
-      INSERT INTO reviews (file_id, frame_id, frame_name, published_by, description)
-      VALUES (${fileRow.id}, ${frameId}, ${frameName}, ${user.id}, ${description})
+      INSERT INTO reviews (file_id, frame_id, frame_name, published_by, description, workspace_id)
+      VALUES (${fileRow.id}, ${frameId}, ${frameName}, ${user.id}, ${description}, ${workspaceId ?? null})
       RETURNING *
     `
 

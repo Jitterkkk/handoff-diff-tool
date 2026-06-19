@@ -11,6 +11,7 @@ import type {
   FrameReview,
   PluginToUIMessage,
   UIToPluginMessage,
+  WorkspaceSummary,
 } from '../shared/types';
 
 function send(msg: PluginToUIMessage): void {
@@ -51,6 +52,7 @@ async function authenticateUser(): Promise<string | null> {
 
 let sessionStart = 0;
 let includePosition = false;
+let selectedWorkspaceId: string | null = null;
 const capturingFrameIds = new Set<string>();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -183,6 +185,7 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
             publishedByUserId: figma.currentUser !== null ? (figma.currentUser.id ?? figma.currentUser.name) : 'unknown',
             publishedByName: figma.currentUser !== null ? figma.currentUser.name : 'Designer',
             items: diffs,
+            ...(selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : {}),
           };
           try {
             send({ type: 'PUBLISH_STATUS', message: 'Conectando ao servidor...' });
@@ -244,8 +247,17 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
     case 'GET_SETTINGS': {
       const settings = await loadSettings();
       includePosition = settings.includePosition;
+      selectedWorkspaceId = settings.selectedWorkspaceId ?? null;
       const figmaFileUrl = (await figma.clientStorage.getAsync('figmaFileUrl') as string | undefined) ?? '';
-      send({ type: 'SETTINGS', includePosition: settings.includePosition, figmaFileUrl });
+      send({ type: 'SETTINGS', includePosition: settings.includePosition, figmaFileUrl, selectedWorkspaceId });
+      if (authToken) {
+        try {
+          const workspaces: WorkspaceSummary[] = await apiClient.getWorkspaces(authToken);
+          send({ type: 'WORKSPACES_LOADED', workspaces });
+        } catch {
+          // workspace fetch failure is non-fatal
+        }
+      }
       break;
     }
 
@@ -257,6 +269,12 @@ figma.ui.onmessage = async (raw: unknown): Promise<void> => {
 
     case 'SAVE_FIGMA_URL': {
       await figma.clientStorage.setAsync('figmaFileUrl', msg.figmaFileUrl);
+      break;
+    }
+
+    case 'SELECT_WORKSPACE': {
+      selectedWorkspaceId = msg.workspaceId;
+      await saveSettings({ includePosition, selectedWorkspaceId: msg.workspaceId });
       break;
     }
 

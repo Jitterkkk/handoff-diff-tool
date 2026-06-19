@@ -102,6 +102,14 @@ export interface FrameMeta {
   historyEntries: SnapshotEntryMeta[];
 }
 
+// ─── Workspace ────────────────────────────────────────────────────────────────
+
+export interface WorkspaceSummary {
+  id: string;
+  name: string;
+  role: 'owner' | 'member';
+}
+
 // ─── Review flow ─────────────────────────────────────────────────────────────
 
 export interface ReviewItem {
@@ -142,7 +150,8 @@ export type UIToPluginMessage =
   | { type: 'GET_SETTINGS' }
   | { type: 'SAVE_SETTINGS'; includePosition: boolean }
   | { type: 'SAVE_FIGMA_URL'; figmaFileUrl: string }
-  | { type: 'RESET_FRAME'; frameId: string };
+  | { type: 'RESET_FRAME'; frameId: string }
+  | { type: 'SELECT_WORKSPACE'; workspaceId: string | null };
 
 // Plugin → UI
 export type PluginToUIMessage =
@@ -153,8 +162,9 @@ export type PluginToUIMessage =
   | { type: 'REVIEW_PUBLISHED'; synced: boolean; review: FrameReview; frames: FrameMeta[] }
   | { type: 'REVIEW_PUBLISHED'; synced: false; reason: 'no_changes' }
   | { type: 'NO_PREVIOUS_SNAPSHOT' }
-  | { type: 'SETTINGS'; includePosition: boolean; figmaFileUrl?: string }
+  | { type: 'SETTINGS'; includePosition: boolean; figmaFileUrl?: string; selectedWorkspaceId?: string | null }
   | { type: 'PUBLISH_STATUS'; message: string }
   | { type: 'FRAME_RESET'; frameId: string }
   | { type: 'BASELINE_ERROR'; frameId: string; message: string }
+  | { type: 'WORKSPACES_LOADED'; workspaces: WorkspaceSummary[] }
   | { type: 'ERROR'; message: string };

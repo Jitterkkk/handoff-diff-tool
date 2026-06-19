@@ -1,6 +1,6 @@
 /// <reference types="@figma/plugin-typings" />
 
-import type { DiffResult, ReviewSummary } from '../shared/types';
+import type { DiffResult, ReviewSummary, WorkspaceSummary } from '../shared/types';
 
 const API_BASE = 'https://handoff-api.onrender.com';
 
@@ -86,7 +86,9 @@ export interface ApiClient {
     publishedByUserId: string;
     publishedByName: string;
     items: DiffResult[];
+    workspaceId?: string;
   }): Promise<BackendReview>;
+  getWorkspaces(token: string): Promise<WorkspaceSummary[]>;
   getReviews(token: string, fileKey: string): Promise<ReviewSummary[]>;
   getReviewDetail(token: string, reviewId: string): Promise<BackendReview>;
   checkItem(token: string, reviewId: string, itemId: string, checked: boolean): Promise<BackendReview>;
@@ -118,6 +120,7 @@ class ApiClientImpl implements ApiClient {
     publishedByUserId: string;
     publishedByName: string;
     items: DiffResult[];
+    workspaceId?: string;
   }): Promise<BackendReview> {
     return request<BackendReview>('/api/reviews', {
       method: 'POST',
@@ -140,8 +143,17 @@ class ApiClientImpl implements ApiClient {
           before: i.before,
           after: i.after,
         })),
+        ...(payload.workspaceId ? { workspaceId: payload.workspaceId } : {}),
       }),
     });
+  }
+
+  async getWorkspaces(token: string): Promise<WorkspaceSummary[]> {
+    const data = await request<Array<{ id: string; name: string; role: 'owner' | 'member' }>>(
+      '/api/workspaces',
+      { token },
+    );
+    return data.map(w => ({ id: w.id, name: w.name, role: w.role }));
   }
 
   async getReviews(token: string, fileKey: string): Promise<ReviewSummary[]> {
