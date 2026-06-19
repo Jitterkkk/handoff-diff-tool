@@ -28,6 +28,7 @@ export const PublishReviewBodySchema = z.object({
 export const ListReviewsQuerySchema = z.object({
   fileKey: z.string().min(1).optional(),
   status: z.enum(['pending', 'in_progress', 'done', 'archived']).optional(),
+  workspaceId: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 })

@@ -64,6 +64,19 @@ export interface PublicReviewItem {
   comment?: string
 }
 
+export interface Workspace {
+  id: string
+  name: string
+  slug: string
+  createdBy: string
+  createdAt: string
+}
+
+export interface WorkspaceWithRole extends Workspace {
+  role: 'owner' | 'member'
+  memberCount: number
+}
+
 export interface PublicReview {
   id: string
   file_key: string

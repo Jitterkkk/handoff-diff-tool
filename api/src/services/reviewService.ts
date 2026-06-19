@@ -118,12 +118,30 @@ export async function listReviews(
   status?: string,
   limit = 20,
   offset = 0,
+  workspaceId?: string,
 ): Promise<ReviewsPage> {
+  if (workspaceId) {
+    const [member] = await sql<{ workspace_id: string }[]>`
+      SELECT wm.workspace_id
+      FROM workspace_members wm
+      JOIN users u ON u.id = wm.user_id
+      WHERE wm.workspace_id = ${workspaceId}
+        AND u.figma_user_id = ${figmaUserId}
+    `
+    if (!member) {
+      throw Object.assign(new Error('Not a member of this workspace'), { statusCode: 403 })
+    }
+  }
+
   const archiveFilter = status === 'archived'
     ? sql`AND r.archived_at IS NOT NULL`
     : sql`AND r.archived_at IS NULL`
   const statusFilter = status && status !== 'archived'
     ? sql`AND r.status = ${status}`
+    : sql``
+
+  const workspaceFilter = workspaceId
+    ? sql`AND r.workspace_id = ${workspaceId}`
     : sql``
 
   const [countRow] = await sql<{ count: number }[]>`
@@ -135,6 +153,7 @@ export async function listReviews(
       ${fileKey ? sql`AND f.figma_file_key = ${fileKey}` : sql``}
       ${archiveFilter}
       ${statusFilter}
+      ${workspaceFilter}
   `
   const total = countRow?.count ?? 0
 
@@ -158,6 +177,7 @@ export async function listReviews(
       ${fileKey ? sql`AND f.figma_file_key = ${fileKey}` : sql``}
       ${archiveFilter}
       ${statusFilter}
+      ${workspaceFilter}
     GROUP BY r.id, u.name
     ORDER BY r.published_at DESC
     LIMIT ${limit} OFFSET ${offset}

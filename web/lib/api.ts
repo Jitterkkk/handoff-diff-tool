@@ -1,4 +1,4 @@
-import type { ReviewSummary, ReviewDetail, ReviewsPage, PublicReview, FileWithStats } from './types'
+import type { ReviewSummary, ReviewDetail, ReviewsPage, PublicReview, FileWithStats, Workspace, WorkspaceWithRole } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://handoff-api.onrender.com'
 
@@ -30,12 +30,13 @@ async function request<T>(
 }
 
 export async function getReviews(
-  opts: ApiOptions & { fileKey?: string; status?: string; limit?: number; offset?: number },
+  opts: ApiOptions & { fileKey?: string; status?: string; limit?: number; offset?: number; workspaceId?: string },
 ): Promise<ReviewsPage> {
-  const { token, fileKey, status, limit = 20, offset = 0 } = opts
+  const { token, fileKey, status, limit = 20, offset = 0, workspaceId } = opts
   const params = new URLSearchParams()
   if (fileKey) params.set('fileKey', fileKey)
   if (status) params.set('status', status)
+  if (workspaceId) params.set('workspaceId', workspaceId)
   params.set('limit', String(limit))
   params.set('offset', String(offset))
   return request<ReviewsPage>(`/api/reviews?${params.toString()}`, { token })
@@ -101,6 +102,28 @@ export async function getSlackIntegration(
   } catch {
     return null
   }
+}
+
+export async function getWorkspaces(opts: ApiOptions): Promise<WorkspaceWithRole[]> {
+  return request<WorkspaceWithRole[]>('/api/workspaces', opts)
+}
+
+export async function createWorkspace(opts: ApiOptions, name: string): Promise<Workspace> {
+  return request<Workspace>('/api/workspaces', { ...opts, method: 'POST', body: JSON.stringify({ name }) })
+}
+
+export async function generateInvite(
+  opts: ApiOptions,
+  workspaceId: string,
+): Promise<{ token: string; url: string }> {
+  return request<{ token: string; url: string }>(
+    `/api/workspaces/${workspaceId}/invite`,
+    { ...opts, method: 'POST' },
+  )
+}
+
+export async function joinWorkspace(opts: ApiOptions, inviteToken: string): Promise<Workspace> {
+  return request<Workspace>(`/api/workspaces/join/${inviteToken}`, { ...opts, method: 'POST' })
 }
 
 export async function getFileReviews(
